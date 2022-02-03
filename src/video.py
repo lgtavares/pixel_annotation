@@ -1,6 +1,6 @@
 import cv2
 from frame import Frame
-                                                                                 
+
 class Video:                                                                                          
                                                                                                                                    
     def __init__(self, filepath):                                                                                                 
@@ -30,8 +30,7 @@ class Video:
 
             video.release()
             return None
-           
-                                                 
+                                  
     def __str__(self):
         return self.filepath
 

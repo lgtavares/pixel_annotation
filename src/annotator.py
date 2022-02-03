@@ -1,6 +1,6 @@
 from video import Video
 
-class Annotation():
+class Annotator():
 
     """Class to handle the annotations.
 
@@ -14,6 +14,6 @@ class Annotation():
 
     def __init__(self, ref_video, tar_video):
 
-        # Loading objectis
+        # Loading objects
         self.ref_video = Video(ref_video)       
         self.tar_video = Video(tar_video)
