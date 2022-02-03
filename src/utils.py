@@ -1,5 +1,7 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
 
+class LabelFileError(Exception):
+    pass
 
 def newIcon(icon):
     return QtGui.QIcon(':/' + icon)
@@ -72,4 +74,27 @@ class ToolButton(QtWidgets.QToolButton):
         ToolButton.minSize = max(w1, w2), max(h1, h2)
         return QtCore.QSize(*ToolButton.minSize)
 
+def to_pixmap(cvImage):
+    
+    height, width, dim = cvImage.shape
+    bytesPerLine = dim * width
+    qimg = QtGui.QImage(cvImage.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888)
+    return QtGui.QPixmap.fromImage(qimg)
 
+
+class WindowMenu(object):
+
+    def menu(self, title, actions=None):
+        menu = self.menuBar().addMenu(title)
+        if actions:
+            addActions(menu, actions)
+        return menu
+
+    def toolbar(self, title, actions=None):
+        toolbar = ToolBar(title)
+        toolbar.setObjectName(u'%sToolBar' % title)
+        toolbar.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
+        if actions:
+            addActions(toolbar, actions)
+        self.addToolBar(QtCore.Qt.LeftToolBarArea, toolbar)
+        return toolbar
