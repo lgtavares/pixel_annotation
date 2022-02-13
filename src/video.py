@@ -20,56 +20,95 @@ class VideoPair:
         self.tcf_videos = [Video(v) for v in self.tcf_names]
 
         self.mode      = None
+        self.mask      = None
+        self.K         = 6
         self.fold      = 0
 
   
     def get_frame(self, idx):
 
-        if self.mode == None:
-            return self.ref_video.get_frame(idx), \
-                   self.tar_video.get_frame(idx), \
-                   np.zeros_like(self.tar_video.get_frame(idx))
+        frames_tcf = np.array([i.get_frame(idx) for i in self.tcf_videos])
+        frames_rf  = np.array([i.get_frame(idx) for i in self.rf_videos])
 
-        elif self.mode == 'DAOMC':
+        ref_frame   = self.ref_video.get_frame(idx)
+        tar_frame   = self.tar_video.get_frame(idx)
+        mask_frame  = np.ones_like(ref_frame)
+        class_frame = np.zeros_like(ref_frame)
 
-            return self.ref_video.get_frame(idx), \
-                    self.tar_video.get_frame(idx), \
-                    self.daomc_video.get_frame(idx)       
+        if self.mode == 'DAOMC':
+            class_frame = self.daomc_video.get_frame(idx)       
 
         elif self.mode == 'TCF-LMO':
+            frames_tcf = (frames_tcf > 127)
 
-            frames_arr = np.array([i.get_frame(idx) for i in self.tcf_videos])
-            frames_arr = (frames_arr > 127)
             if self.fold==0:
-                net_img = np.sum(frames_arr, axis=0)
-                net_img = (255*(net_img/9)).astype('uint8')
+                class_frame = np.sum(frames_tcf, axis=0)
+                class_frame = (255*(class_frame/9)).astype('uint8')
             elif self.fold in list(range(1,10)):
-                net_img = frames_arr[self.fold-1]
-                net_img = 255*net_img.astype('uint8')
+                class_frame = frames_tcf[self.fold-1]
+                class_frame = 255*class_frame.astype('uint8')
             else:
-                net_img = np.zeros_like(self.tar_video.get_frame(idx))
-            return  self.ref_video.get_frame(idx), \
-                    self.tar_video.get_frame(idx), \
-                    net_img          
-
+                class_frame = np.zeros_like(self.tar_video.get_frame(idx))
+  
         elif self.mode == 'Resnet+RF':
-            frames_arr = np.array([i.get_frame(idx) for i in self.rf_videos])
-            frames_arr = (frames_arr > 127)
+            frames_rf = (frames_rf > 127)
             if self.fold==0:
-                net_img = np.sum(frames_arr, axis=0)
-                net_img = (255*(net_img/9)).astype('uint8')
+                class_frame = np.sum(class_frame, axis=0)
+                class_frame = (255*(class_frame/9)).astype('uint8')
             elif self.fold in list(range(1,10)):
-                net_img = frames_arr[self.fold-1]
-                net_img = 255*net_img.astype('uint8')
+                class_frame = frames_rf[self.fold-1]
+                class_frame = 255*class_frame.astype('uint8')
             else:
-                net_img = np.zeros_like(self.tar_video.get_frame(idx))
-            return  self.ref_video.get_frame(idx), \
-                    self.tar_video.get_frame(idx), \
-                    net_img    
-        else:   
-            return self.ref_video.get_frame(idx), \
-                   self.tar_video.get_frame(idx), \
-                   np.zeros_like(self.tar_video.get_frame(idx))
+                class_frame = np.zeros_like(self.tar_video.get_frame(idx))
+        elif self.mode == 'K-means':
+            class_frame = self.kmeans(ref_frame, tar_frame, self.K)
+        else: 
+            pass
+
+        if self.mask == 'DAOMC':
+            mask_frame = self.daomc_video.get_frame(idx)       
+            mask_frame = (mask_frame>127).astype('uint8')
+            
+        elif self.mask == 'TCF-LMO':
+            frames_tcf = (frames_tcf > 127)
+
+            if self.fold==0:
+                mask_frame = np.sum(frames_tcf, axis=0)
+                mask_frame = (mask_frame/9).astype('uint8')
+            elif self.fold in list(range(1,10)):
+                mask_frame = frames_tcf[self.fold-1].astype('uint8')
+            else:
+                mask_frame = np.ones_like(self.tar_video.get_frame(idx))
+  
+        elif self.mask == 'Resnet+RF':
+            frames_rf = (frames_rf > 127)
+            if self.fold==0:
+                mask_frame = np.sum(mask_frame, axis=0)
+                mask_frame = (mask_frame/9).astype('uint8')
+            elif self.fold in list(range(1,10)):
+                mask_frame = frames_rf[self.fold-1]
+                mask_frame = mask_frame.astype('uint8')
+            else:
+                mask_frame = np.ones_like(self.tar_video.get_frame(idx))
+        else: 
+            mask_frame = np.ones_like(tar_frame)
+
+        return ref_frame, tar_frame, mask_frame*class_frame
+
+    def kmeans(self, ref_frame, tar_frame, K):
+        h, _, _ = tar_frame.shape
+        Z = np.concatenate((ref_frame,tar_frame))
+
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1)
+        _, label, center = cv2.kmeans( np.float32(Z.reshape((-1,3))),K,None,criteria,10,cv2.KMEANS_RANDOM_CENTERS)
+        center = np.uint8(center)
+        res    = cv2.cvtColor(center[label.flatten()].reshape((Z.shape)).astype('uint8'), cv2.COLOR_RGB2GRAY)
+        diff   = np.abs(res[:h]-res[h:])
+        return cv2.cvtColor(diff, cv2.COLOR_GRAY2RGB)
+
+
+
+
 
 class Video:                                                                                          
                                                                                                                                    

@@ -55,6 +55,10 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
         self.mask = None
         self.classifier = None
+        self.threshold  = 50
+        self.opening    = 5
+        self.closing    = 5
+        self.erosion    = 5
         
         self.setupUi(self)
         self.setup()
@@ -87,8 +91,8 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         dirname = os.path.dirname(self.ref_filename)
         self.tcf_filename   = os.path.join(dirname, 'tcf_lmo')
         self.rf_filename    = os.path.join(dirname, 'rf')
-        self.daomc_filename = os.path.join(dirname, 'daomc')
-        self.daomc_filename = os.path.join(self.daomc_filename, 
+        self.admult_filename = os.path.join(dirname, 'admult')
+        self.admult_filename = os.path.join(self.admult_filename, 
                                            'dissimilarity_video{0:02d}.avi'.format(self.video))
 
         self.error(os.path.exists(self.ref_filename), 
@@ -97,8 +101,8 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.error(os.path.exists(self.tar_filename), 
                     'Error opening file\n {}.'.format(self.tar_filename)+
                     '\nMake sure it is a valid file.')
-        self.error(os.path.exists(self.daomc_filename), 
-                    'Error opening file\n {}.'.format(self.daomc_filename)+
+        self.error(os.path.exists(self.admult_filename), 
+                    'Error opening file\n {}.'.format(self.admult_filename)+
                     '\nMake sure it is a valid file.')
         self.error(os.path.exists(self.tcf_filename), 
                     'Error opening folder\n {}.'.format(self.tcf_filename)+
@@ -109,7 +113,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
         self.videopair = VideoPair(self.ref_filename, self.tar_filename,
                                    self.rf_filename, self.tcf_filename,
-                                   self.daomc_filename)
+                                   self.admult_filename)
         self.status.loadedFiles = True
 
         # Temporary
@@ -144,6 +148,12 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
     #         return QtWidgets.QMessageBox.critical(self, 'Error', ('Value must be integer'))
 
     def setImages(self, image_ref, image_tar):
+
+        # Post-processing
+        image_ref = self.apply_morphology(image_ref)
+
+        # Contour
+        #image_tar = self.draw_contour(image_tar)
 
         self.frame_edit.setText('{}'.format(self.frame+1))
         if self.frame >=0 and self.frame<self.num_frames:
@@ -185,6 +195,10 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.class_groupbox.setEnabled(True)
             self.post_groupbox.setEnabled(True)
             self.vis_groupbox.setEnabled(True)
+            self.thresh_slider.setEnabled(True)
+            self.open_sbox.setEnabled(True)
+            self.close_sbox.setEnabled(True)
+            self.erode_sbox.setEnabled(True)
 
     def nextFrame(self):
         """Load next frame"""
@@ -201,7 +215,6 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
     def resizeEvent(self, event):
         if self.status.loadedFiles:
             self.setFrame(self.frame)
-        
         super(MainWindow, self).resizeEvent(event)
     
 
@@ -210,6 +223,65 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         if radioButton.isChecked():
             self.videopair.mode = radioButton.mode
             self.setFrame(self.frame)
+
+    def change_mask(self):
+        radioButton = self.sender()
+        if radioButton.isChecked():
+            self.videopair.mask = radioButton.mask
+            self.setFrame(self.frame)
+
+    def apply_morphology(self, img):
+
+        # structures
+        struct_opening  = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (self.opening, self.opening))
+        struct_closing  = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (self.closing, self.closing))
+        struct_erosion  = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (self.erosion, self.erosion))
+        
+        # threshold
+        _, img = cv2.threshold(img, 255*self.threshold//100, 255, cv2.THRESH_BINARY)
+
+        # opening
+        img = cv2.morphologyEx(img, cv2.MORPH_OPEN, struct_opening)
+
+        # closing
+        img = cv2.morphologyEx(img, cv2.MORPH_CLOSE, struct_closing)
+
+        # erosion
+        foreground = cv2.morphologyEx(img, cv2.MORPH_ERODE,  struct_erosion, borderType = cv2.BORDER_CONSTANT, borderValue = 0) 
+        dontcare   = cv2.morphologyEx(img, cv2.MORPH_DILATE, struct_erosion, borderType = cv2.BORDER_CONSTANT, borderValue = 0)         
+
+        img = self.draw_contour(img, foreground, dontcare)
+        return img
+
+    def draw_contour(self, img, foreground, dontcare):
+
+        foreground = cv2.cvtColor(foreground, cv2.COLOR_RGB2GRAY)
+        dontcare   = cv2.cvtColor(dontcare, cv2.COLOR_RGB2GRAY)
+
+        contours_fg, _ = cv2.findContours(foreground.astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        contours_dc, _ = cv2.findContours(dontcare.astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+        cv2.drawContours(img, contours_fg, -1, (191, 64, 64, 0.5), 2) 
+        cv2.drawContours(img, contours_dc, -1, (0,102, 204, 0.5), 2) 
+
+        #     if self.fill_check.isChecked():
+        #         cv2.fillPoly(overlay, pts=contours, color=(191, 64, 64, 0.5))
+        # cv2.drawContours(overlay, contours_nt, -1,(0,102, 204, 0.5), 1) 
+        #     if self.fill_check.isChecked():
+        #         cv2.fillPoly(overlay, pts=contours_nt, color=(0,102, 204, 0.5))
+    
+
+        return img
+
+    def save_settings(self):
+        pass
+            
+    def set_morphology(self):
+        self.threshold = self.thresh_slider.value()
+        self.closing   = self.close_sbox.value()
+        self.opening   = self.open_sbox.value()
+        self.erosion     = self.erode_sbox.value()
+        self.setFrame(self.frame)
             
 
 if __name__ == "__main__":
