@@ -118,21 +118,19 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
         # Temporary
         self.num_frames = self.videopair.tar_video.num_frames
-        self.enableWidgets()
+        self.update()
 
 
-    def setFrame(self, idx):
+    def update(self):
         """Load graphic view and set widgets"""
 
-        self.frame = idx
-
-        ###### DEBUG ###########
-        self.videopair.fold = 1
+        # Enable/disable widgets
+        self.enableWidgets()
                
         if self.status.loadedFiles:
 
             ref_frame, tar_frame, net_frame = self.videopair.get_frame(self.frame)
-            self.setImages(net_frame, tar_frame)
+            self.setImages(ref_frame, tar_frame)
 
     # def setFrameLabel(self):
 
@@ -141,7 +139,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
     #     if isinstance(frame, int) :
     #         if frame < self.num_frames and frame>=0:
     #             self.frame = frame
-    #             self.setFrame(self.frame)
+    #             self.update()
     #         else:
     #             return QtWidgets.QMessageBox.critical(self, 'Error', ('Value must be integer between 1 and {}'.format(self.num_frames)))
     #     else:
@@ -150,7 +148,10 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
     def setImages(self, image_ref, image_tar):
 
         # Post-processing
-        image_ref = self.apply_morphology(image_ref)
+        detection, cnt_fg, cnt_dc = self.apply_morphology(image_tar)
+
+        img_show_ref = image_ref
+        img_show_tar = self.draw_contour(image_tar,cnt_fg, cnt_dc)
 
         # Contour
         #image_tar = self.draw_contour(image_tar)
@@ -160,11 +161,11 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.scene_ref.clear()
             self.scene_tar.clear()
 
-            imgmap_ref  = QtGui.QPixmap(to_pixmap(image_ref))
+            imgmap_ref  = QtGui.QPixmap(to_pixmap(img_show_ref))
             pixItem_ref = QtWidgets.QGraphicsPixmapItem(imgmap_ref) 
             self.scene_ref.addItem(pixItem_ref)     
 
-            imgmap_tar  = QtGui.QPixmap(to_pixmap(image_tar))
+            imgmap_tar  = QtGui.QPixmap(to_pixmap(img_show_tar))
             pixItem_tar = QtWidgets.QGraphicsPixmapItem(imgmap_tar) 
             self.scene_tar.addItem(pixItem_tar)     
 
@@ -191,7 +192,6 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.pushbutton_next.setEnabled(True)
             self.pushbutton_prev.setEnabled(True)
             self.frame_label.setText('/ {}'.format(self.num_frames))
-            self.setFrame(0)
             self.class_groupbox.setEnabled(True)
             self.post_groupbox.setEnabled(True)
             self.vis_groupbox.setEnabled(True)
@@ -199,22 +199,41 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.open_sbox.setEnabled(True)
             self.close_sbox.setEnabled(True)
             self.erode_sbox.setEnabled(True)
+            self.contour_checkbox.setEnabled(True)
+            self.fill_checkbox.setEnabled(True)
+
+            if self.tcf_net_radio.isChecked() or self.rf_net_radio.isChecked():
+                self.fold_combobox.setEnabled(True)
+            else:
+                self.fold_combobox.setEnabled(False)
+        
+    def setFrame(self):
+        """Load frame"""
+        frm = self.frame_slider.value()
+        if frm < self.num_frames and frm >=0:
+            self.frame = frm
+        self.update()    
+
+    def setFold(self):
+        """Load frame"""
+        self.videopair.fold = self.fold_combobox.currentIndex()
+        self.update()    
 
     def nextFrame(self):
         """Load next frame"""
         if self.frame < self.num_frames:
             self.frame += 1
-            self.setFrame(self.frame)
+            self.update()
 
     def prevFrame(self):
         """Load previous frame"""
         if self.frame >0:
             self.frame -= 1
-            self.setFrame(self.frame)
+            self.update()
 
     def resizeEvent(self, event):
         if self.status.loadedFiles:
-            self.setFrame(self.frame)
+            self.update()
         super(MainWindow, self).resizeEvent(event)
     
 
@@ -222,13 +241,13 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         radioButton = self.sender()
         if radioButton.isChecked():
             self.videopair.mode = radioButton.mode
-            self.setFrame(self.frame)
+            self.update()
 
     def change_mask(self):
         radioButton = self.sender()
         if radioButton.isChecked():
             self.videopair.mask = radioButton.mask
-            self.setFrame(self.frame)
+            self.update()
 
     def apply_morphology(self, img):
 
@@ -250,28 +269,38 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         foreground = cv2.morphologyEx(img, cv2.MORPH_ERODE,  struct_erosion, borderType = cv2.BORDER_CONSTANT, borderValue = 0) 
         dontcare   = cv2.morphologyEx(img, cv2.MORPH_DILATE, struct_erosion, borderType = cv2.BORDER_CONSTANT, borderValue = 0)         
 
-        img = self.draw_contour(img, foreground, dontcare)
-        return img
+        cnt_fg, cnt_dc = self.get_contours(foreground, dontcare)
+            
+        return img, cnt_fg, cnt_dc
 
-    def draw_contour(self, img, foreground, dontcare):
+
+    def get_contours(self, foreground, dontcare):
 
         foreground = cv2.cvtColor(foreground, cv2.COLOR_RGB2GRAY)
         dontcare   = cv2.cvtColor(dontcare, cv2.COLOR_RGB2GRAY)
-
         contours_fg, _ = cv2.findContours(foreground.astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         contours_dc, _ = cv2.findContours(dontcare.astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-        cv2.drawContours(img, contours_fg, -1, (191, 64, 64, 0.5), 2) 
-        cv2.drawContours(img, contours_dc, -1, (0,102, 204, 0.5), 2) 
-
-        #     if self.fill_check.isChecked():
-        #         cv2.fillPoly(overlay, pts=contours, color=(191, 64, 64, 0.5))
-        # cv2.drawContours(overlay, contours_nt, -1,(0,102, 204, 0.5), 1) 
-        #     if self.fill_check.isChecked():
-        #         cv2.fillPoly(overlay, pts=contours_nt, color=(0,102, 204, 0.5))
+        return contours_fg, contours_dc
     
+    def draw_contour(self, img, contours_fg, contours_dc):
 
-        return img
+        alpha = 0.5
+        if self.contour_checkbox.isChecked():
+            cv2.drawContours(img, contours_fg, -1, (191, 64, 64, 0.5), 2) 
+            cv2.drawContours(img, contours_dc, -1, (0,102, 204, 0.5), 2) 
+
+        result_img = img.copy()
+
+        if self.fill_checkbox.isChecked():
+            cv2.fillPoly(img, pts=contours_dc, color=(0, 102, 204, 0.5))
+            cv2.fillPoly(img, pts=contours_fg, color=(191, 64, 64, 0.5))
+        
+        result_img = cv2.addWeighted(img, alpha, result_img, 1-alpha, 0, result_img)
+        return result_img
+
+    def load_settings(self):
+        pass
 
     def save_settings(self):
         pass
@@ -280,8 +309,8 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.threshold = self.thresh_slider.value()
         self.closing   = self.close_sbox.value()
         self.opening   = self.open_sbox.value()
-        self.erosion     = self.erode_sbox.value()
-        self.setFrame(self.frame)
+        self.erosion   = self.erode_sbox.value()
+        self.update()
             
 
 if __name__ == "__main__":

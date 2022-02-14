@@ -76,7 +76,7 @@ class Ui_MainWindow(object):
         # Classifier groupbox
         class_layout  = QtWidgets.QHBoxLayout()
         mask_groupbox = QtWidgets.QGroupBox('Mask',self.centralwidget)
-        net_groupbox  = QtWidgets.QGroupBox('Classifier',self.centralwidget)
+        net_groupbox  = QtWidgets.QGroupBox('Algorithm',self.centralwidget)
         opt_groupbox  = QtWidgets.QGroupBox('Options',self.centralwidget)
         self.admult_mask_radio  = QtWidgets.QRadioButton('ADMULT')
         self.tcf_mask_radio    = QtWidgets.QRadioButton('TCF-LMO')
@@ -111,7 +111,13 @@ class Ui_MainWindow(object):
         classbox.addWidget(self.km_net_radio)
         net_groupbox.setLayout(classbox)
 
-
+        optbox = QtWidgets.QVBoxLayout()
+        self.fold_combobox = QtWidgets.QComboBox()
+        self.fold_combobox.addItems(["All"]+[str(i) for i in range(1,10)])
+        self.fold_combobox.setEnabled(False)
+        optbox.addWidget(QtWidgets.QLabel('Fold:'))
+        optbox.addWidget(self.fold_combobox)
+        opt_groupbox.setLayout(optbox)
 
         class_layout.addWidget(mask_groupbox)
         class_layout.addWidget(net_groupbox)
@@ -155,8 +161,16 @@ class Ui_MainWindow(object):
         self.post_groupbox.setLayout(post_layout)
 
         # Visualization groupbox
-
-
+        post_layout   = QtWidgets.QVBoxLayout()
+        contour_layout = QtWidgets.QHBoxLayout()
+        self.contour_checkbox = QtWidgets.QCheckBox('Show contours')
+        self.fill_checkbox = QtWidgets.QCheckBox('Fill contours')
+        self.contour_checkbox.setEnabled(False)
+        self.fill_checkbox.setEnabled(False)
+        contour_layout.addWidget(self.contour_checkbox)
+        contour_layout.addWidget(self.fill_checkbox)
+        post_layout.addLayout(contour_layout)
+        self.vis_groupbox.setLayout(post_layout)
 
 
         # Combining layouts
@@ -180,7 +194,9 @@ class Ui_MainWindow(object):
         self.open_sbox.valueChanged['int'].connect(self.set_morphology)
         self.close_sbox.valueChanged['int'].connect(self.set_morphology)
         self.erode_sbox.valueChanged['int'].connect(self.set_morphology)
-
+        self.fold_combobox.currentIndexChanged.connect(self.setFold)
+        self.fill_checkbox.stateChanged.connect(self.update)
+        self.contour_checkbox.stateChanged.connect(self.update)
         MainWindow.setCentralWidget(self.centralwidget)
 
         # Actions
