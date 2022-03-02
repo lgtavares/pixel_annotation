@@ -29,8 +29,8 @@ class Ui_MainWindow(object):
         #### Graphic view area
         self.graphicview_ref = GraphicsView(self.centralwidget)
         self.graphicview_tar = GraphicsView(self.centralwidget)
-        self.graphicview_ref.setMinimumSize(QtCore.QSize(400, 225))
-        self.graphicview_tar.setMinimumSize(QtCore.QSize(400, 225))
+        self.graphicview_ref.setMinimumSize(QtCore.QSize(600, 338))
+        self.graphicview_tar.setMinimumSize(QtCore.QSize(600, 338))
         self.img_verticalLayout.addWidget(self.graphicview_ref)
         self.img_verticalLayout.addWidget(self.graphicview_tar)
 
@@ -163,13 +163,19 @@ class Ui_MainWindow(object):
         # Visualization groupbox
         post_layout   = QtWidgets.QVBoxLayout()
         contour_layout = QtWidgets.QHBoxLayout()
+        mark_layout = QtWidgets.QHBoxLayout()
         self.contour_checkbox = QtWidgets.QCheckBox('Show contours')
         self.fill_checkbox = QtWidgets.QCheckBox('Fill contours')
         self.contour_checkbox.setEnabled(False)
         self.fill_checkbox.setEnabled(False)
         contour_layout.addWidget(self.contour_checkbox)
         contour_layout.addWidget(self.fill_checkbox)
+        self.noobject_pushbutton = QtWidgets.QPushButton(self.centralwidget)
+        self.noobject_pushbutton.setEnabled(False)
+        mark_layout.addWidget(self.noobject_pushbutton)
         post_layout.addLayout(contour_layout)
+        post_layout.addLayout(mark_layout)
+
         self.vis_groupbox.setLayout(post_layout)
 
 
@@ -197,6 +203,7 @@ class Ui_MainWindow(object):
         self.fold_combobox.currentIndexChanged.connect(self.setFold)
         self.fill_checkbox.stateChanged.connect(self.update)
         self.contour_checkbox.stateChanged.connect(self.update)
+        self.noobject_pushbutton.clicked.connect(self.noobject)
         MainWindow.setCentralWidget(self.centralwidget)
 
         # Actions

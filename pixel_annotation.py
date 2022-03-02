@@ -59,7 +59,9 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.opening    = 5
         self.closing    = 5
         self.erosion    = 5
-        
+
+        self.settings   = {}
+
         self.setupUi(self)
         self.setup()
 
@@ -118,7 +120,13 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
         # Temporary
         self.num_frames = self.videopair.tar_video.num_frames
+
+        # Create settings
+        self.settings = {i:{} for i in range(self.num_frames)}
+
+        # Updating
         self.update()
+
 
 
     def update(self):
@@ -130,12 +138,11 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         if self.status.loadedFiles:
 
             ref_frame, tar_frame, net_frame = self.videopair.get_frame(self.frame)
-            self.setImages(ref_frame, tar_frame)
+            self.setImages(ref_frame, tar_frame, net_frame)
 
+    # TODO: update frame label
     # def setFrameLabel(self):
-
     #     frame = int(self.frame_edit.toPlainText())
-
     #     if isinstance(frame, int) :
     #         if frame < self.num_frames and frame>=0:
     #             self.frame = frame
@@ -145,10 +152,10 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
     #     else:
     #         return QtWidgets.QMessageBox.critical(self, 'Error', ('Value must be integer'))
 
-    def setImages(self, image_ref, image_tar):
+    def setImages(self, image_ref, image_tar, net_frames):
 
         # Post-processing
-        detection, cnt_fg, cnt_dc = self.apply_morphology(image_tar)
+        detection, cnt_fg, cnt_dc = self.apply_morphology(net_frames)
 
         img_show_ref = image_ref
         img_show_tar = self.draw_contour(image_tar,cnt_fg, cnt_dc)
@@ -188,7 +195,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.frame_slider.setEnabled(True)
             self.frame_slider.setMinimum(0)
             self.frame_slider.setMaximum(self.num_frames-1)
-            self.frame_slider.setValue(0)
+            self.frame_slider.setValue(self.frame)
             self.pushbutton_next.setEnabled(True)
             self.pushbutton_prev.setEnabled(True)
             self.frame_label.setText('/ {}'.format(self.num_frames))
@@ -201,7 +208,8 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.erode_sbox.setEnabled(True)
             self.contour_checkbox.setEnabled(True)
             self.fill_checkbox.setEnabled(True)
-
+            self.noobject_pushbutton.setEnabled(True)
+        
             if self.tcf_net_radio.isChecked() or self.rf_net_radio.isChecked():
                 self.fold_combobox.setEnabled(True)
             else:
@@ -211,7 +219,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         """Load frame"""
         frm = self.frame_slider.value()
         if frm < self.num_frames and frm >=0:
-            self.frame = frm
+           self.frame = frm
         self.update()    
 
     def setFold(self):
@@ -223,12 +231,14 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         """Load next frame"""
         if self.frame < self.num_frames:
             self.frame += 1
+            self.frame_slider.setValue(self.frame)
             self.update()
 
     def prevFrame(self):
         """Load previous frame"""
         if self.frame >0:
             self.frame -= 1
+            self.frame_slider.setValue(self.frame)
             self.update()
 
     def resizeEvent(self, event):
@@ -298,6 +308,31 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         
         result_img = cv2.addWeighted(img, alpha, result_img, 1-alpha, 0, result_img)
         return result_img
+    
+    def noobject(self):
+        # mark the current frame as not having an object
+        self.write_setting('has_anomaly', False)
+        # Go to the next frame
+        self.nextFrame()
+
+    def start_settings(self):
+        frame_settings = {}
+        frame_settings['annotated']  = False
+        frame_settings['has_object'] = None
+        frame_settings['mask']       = None
+        frame_settings['algorithm']  = None
+        frame_settings['opening']    = None
+        frame_settings['closing']    = None
+        frame_settings['erode']      = None
+        frame_settings['threshold']  = None
+        frame_settings['contour_fg'] = None
+        frame_settings['contour_dc'] = None
+        self.settings = {i:frame_settings for i in range(self.num_frames)}
+        self.settings['video'] = self.video
+
+    def write_setting(self, setting, value, annotate=True):
+        self.settings[self.frame]['annotated'] = annotate
+        self.settings[self.frame][setting] = value
 
     def load_settings(self):
         pass
