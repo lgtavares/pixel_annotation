@@ -9,7 +9,7 @@ import os
 import sys
 import cv2
 import numpy as np
-
+import pandas as pd
 
 # PyQt libraries
 from PyQt5 import QtCore, QtGui, QtWidgets
@@ -122,7 +122,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.num_frames = self.videopair.tar_video.num_frames
 
         # Create settings
-        self.settings = {i:{} for i in range(self.num_frames)}
+        self.start_settings()
 
         # Updating
         self.update()
@@ -134,6 +134,8 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
         # Enable/disable widgets
         self.enableWidgets()
+        self.annotate()
+        self._print_text(self.frame)
                
         if self.status.loadedFiles:
 
@@ -214,6 +216,9 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
                 self.fold_combobox.setEnabled(True)
             else:
                 self.fold_combobox.setEnabled(False)
+
+            self.ann_text.setEnabled(True)
+
         
     def setFrame(self):
         """Load frame"""
@@ -323,12 +328,22 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         frame_settings['algorithm']  = None
         frame_settings['opening']    = None
         frame_settings['closing']    = None
-        frame_settings['erode']      = None
+        frame_settings['erosion']    = None
         frame_settings['threshold']  = None
         frame_settings['contour_fg'] = None
         frame_settings['contour_dc'] = None
         self.settings = {i:frame_settings for i in range(self.num_frames)}
         self.settings['video'] = self.video
+
+    def annotate(self):
+        
+        self.write_setting('annotated', True)
+        self.write_setting('mask', self.videopair.mask)
+        self.write_setting('algorithm', self.videopair.mode)
+        self.write_setting('opening', self.opening)
+        self.write_setting('closing', self.closing)
+        self.write_setting('erosion', self.erosion)
+        self.write_setting('threshold', self.threshold)
 
     def write_setting(self, setting, value, annotate=True):
         self.settings[self.frame]['annotated'] = annotate
@@ -346,8 +361,45 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.opening   = self.open_sbox.value()
         self.erosion   = self.erode_sbox.value()
         self.update()
-            
 
+    # def create_table(self):
+
+    #     ss = pd.DataFrame(self.settings).T
+    #     ss = ss.iloc[:self.num_frames,:-2]
+            
+    #     self.ann_table.setHorizontalHeaderLabels(['Has object', 'Annotated', 'Mask',
+    #                                               'Algorithm', 'Opening', 'Closing', 'Erosion',
+    #                                               'Threshold'])
+        
+    #     [[self.ann_table.setItem(r,c, QtWidgets.QTableWidgetItem(str(ss.iloc[r,c]))) 
+    #     for c in range(7)] for r in range(self.num_frames)]
+    
+    def _print_text(self, frame):
+
+        self.ann_text.clear()
+        if frame < 2:
+            [self._print_line(k) for k in range(self.frame+3)]
+        elif frame > self.num_frames-2:
+            [self._print_line(k) for k in range(self.frame-2, self.num_frames)]
+        else:
+            [self._print_line(k) for k in range(self.frame-2, self.frame+3)]
+
+    def _print_line(self, f):
+
+        frm_set = self.settings[f]
+        string  = 'Frame {}:  {}, {}, {}, {}, {}, {}, {}\n'.format(f, frm_set['has_object'],
+                                                                   frm_set['annotated'],
+                                                                   frm_set['mask'],
+                                                                   frm_set['algorithm'],
+                                                                   frm_set['opening'],
+                                                                   frm_set['closing'],
+                                                                   frm_set['erosion'],
+                                                                   frm_set['threshold'])
+        self.ann_text.insertPlainText(string)
+
+
+
+            
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     win = MainWindow()

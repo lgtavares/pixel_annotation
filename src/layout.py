@@ -173,8 +173,15 @@ class Ui_MainWindow(object):
         self.noobject_pushbutton = QtWidgets.QPushButton(self.centralwidget)
         self.noobject_pushbutton.setEnabled(False)
         mark_layout.addWidget(self.noobject_pushbutton)
+        mark_layout.addWidget(QtWidgets.QLabel('   '))
+        mark_layout.addWidget(QtWidgets.QLabel('   '))
         post_layout.addLayout(contour_layout)
         post_layout.addLayout(mark_layout)
+        self.ann_text = QtWidgets.QTextBrowser()
+        self.ann_text.setEnabled(False)
+        post_layout.addWidget(self.ann_text)
+
+  
 
         self.vis_groupbox.setLayout(post_layout)
 
