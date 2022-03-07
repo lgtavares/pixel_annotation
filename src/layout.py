@@ -1,4 +1,4 @@
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import QtCore, QtGui, QtWidgets, Qt
 from utils import newAction, addActions, struct, ToolBar, to_pixmap
 from graphicsview import GraphicsView
 from PyQt5 import QtCore, QtGui, QtWidgets
@@ -70,7 +70,7 @@ class Ui_MainWindow(object):
         self.opt_verticalLayout.addWidget(self.vis_groupbox)
         self.class_groupbox.setEnabled(False)
         self.post_groupbox.setEnabled(False)
-        self.vis_groupbox.setEnabled(False)
+        self.vis_groupbox.setEnabled(True)
 
 
         # Classifier groupbox
@@ -98,25 +98,33 @@ class Ui_MainWindow(object):
         mask_groupbox.setLayout(maskbox)
         classbox = QtWidgets.QVBoxLayout()
         self.admult_net_radio  = QtWidgets.QRadioButton('ADMULT')
-        self.tcf_net_radio    = QtWidgets.QRadioButton('TCF-LMO')
-        self.rf_net_radio     = QtWidgets.QRadioButton('Resnet+RF')
-        self.km_net_radio     = QtWidgets.QRadioButton('K-means')
+        self.tcf_net_radio     = QtWidgets.QRadioButton('TCF-LMO')
+        self.rf_net_radio      = QtWidgets.QRadioButton('Resnet+RF')
+        self.diss_radio        = QtWidgets.QRadioButton('Resnet+Dissim')
+        self.km_net_radio      = QtWidgets.QRadioButton('K-means')
         self.admult_net_radio.mode  = 'ADMULT'
-        self.tcf_net_radio.mode    = 'TCF-LMO'
-        self.rf_net_radio.mode     = 'Resnet+RF'
-        self.km_net_radio.mode     = 'K-means'
+        self.tcf_net_radio.mode     = 'TCF-LMO'
+        self.rf_net_radio.mode      = 'Resnet+RF'
+        self.diss_radio.mode        = 'Resnet+Dissim'
+        self.km_net_radio.mode      = 'K-means'
         classbox.addWidget(self.admult_net_radio)
         classbox.addWidget(self.tcf_net_radio)
         classbox.addWidget(self.rf_net_radio)
+        classbox.addWidget(self.diss_radio)
         classbox.addWidget(self.km_net_radio)
         net_groupbox.setLayout(classbox)
 
-        optbox = QtWidgets.QVBoxLayout()
+        optbox  = QtWidgets.QVBoxLayout()
+        foldbox = QtWidgets.QHBoxLayout()
         self.fold_combobox = QtWidgets.QComboBox()
         self.fold_combobox.addItems(["All"]+[str(i) for i in range(1,10)])
         self.fold_combobox.setEnabled(False)
-        optbox.addWidget(QtWidgets.QLabel('Fold:'))
-        optbox.addWidget(self.fold_combobox)
+        foldbox.addWidget(QtWidgets.QLabel('Fold:'))
+        foldbox.addWidget(self.fold_combobox)
+        self.consistency_checkbox = QtWidgets.QCheckBox('Temporal consistency')
+        self.consistency_checkbox.setEnabled(False)
+        optbox.addLayout(foldbox)
+        optbox.addWidget(self.consistency_checkbox)
         opt_groupbox.setLayout(optbox)
 
         class_layout.addWidget(mask_groupbox)
@@ -131,12 +139,12 @@ class Ui_MainWindow(object):
         morph_layout     = QtWidgets.QHBoxLayout()
         self.thresh_slider = QtWidgets.QSlider(self.centralwidget)
         self.thresh_slider.setEnabled(False)
-        self.thresh_slider.setMaximum(100)
-        self.thresh_slider.setProperty("value", 50)
+        self.thresh_slider.setMaximum(255)
+        self.thresh_slider.setProperty("value", 127)
         self.thresh_slider.setOrientation(QtCore.Qt.Horizontal)
         self.thresh_label =  QtWidgets.QLabel(self.centralwidget)
         self.thresh_label.setAlignment(QtCore.Qt.AlignRight|QtCore.Qt.AlignTrailing|QtCore.Qt.AlignVCenter)
-        self.thresh_label.setText('50')
+        self.thresh_label.setText('127')
         thresh_layout.addWidget(self.thresh_slider)
         thresh_layout.addWidget(self.thresh_label)
         self.open_sbox = QtWidgets.QSpinBox(self.centralwidget)
@@ -161,24 +169,36 @@ class Ui_MainWindow(object):
         self.post_groupbox.setLayout(post_layout)
 
         # Visualization groupbox
-        post_layout   = QtWidgets.QVBoxLayout()
+        post_layout    = QtWidgets.QVBoxLayout()
         contour_layout = QtWidgets.QHBoxLayout()
-        mark_layout = QtWidgets.QHBoxLayout()
+        mark_layout    = QtWidgets.QHBoxLayout()
+        save_layout    = QtWidgets.QHBoxLayout()
+
         self.contour_checkbox = QtWidgets.QCheckBox('Show contours')
-        self.fill_checkbox = QtWidgets.QCheckBox('Fill contours')
+        self.fill_checkbox    = QtWidgets.QCheckBox('Fill contours')
         self.contour_checkbox.setEnabled(False)
         self.fill_checkbox.setEnabled(False)
         contour_layout.addWidget(self.contour_checkbox)
         contour_layout.addWidget(self.fill_checkbox)
-        self.noobject_pushbutton = QtWidgets.QPushButton(self.centralwidget)
+        self.noobject_pushbutton = QtWidgets.QPushButton('Skip frame', self.centralwidget)
         self.noobject_pushbutton.setEnabled(False)
+        self.noobject_pushbutton.setMaximumWidth(200)
+        self.load_pushbutton = QtWidgets.QPushButton('Load annotation', self.centralwidget)
+        self.save_pushbutton = QtWidgets.QPushButton('Save annotation', self.centralwidget)
+        self.load_pushbutton.setEnabled(True)
+        self.save_pushbutton.setEnabled(True)
+        save_layout.addWidget(self.load_pushbutton)
+        save_layout.addWidget(self.save_pushbutton)
+        self.activate_checkbox   = QtWidgets.QCheckBox('Enable annotations')
         mark_layout.addWidget(self.noobject_pushbutton)
-        mark_layout.addWidget(QtWidgets.QLabel('   '))
-        mark_layout.addWidget(QtWidgets.QLabel('   '))
+        mark_layout.addWidget(self.activate_checkbox)
         post_layout.addLayout(contour_layout)
         post_layout.addLayout(mark_layout)
+        post_layout.addLayout(save_layout)
         self.ann_text = QtWidgets.QTextBrowser()
         self.ann_text.setEnabled(False)
+        self.ann_text.setMinimumHeight(170)
+        self.ann_text.setMinimumWidth(500)
         post_layout.addWidget(self.ann_text)
 
   
@@ -211,6 +231,11 @@ class Ui_MainWindow(object):
         self.fill_checkbox.stateChanged.connect(self.update)
         self.contour_checkbox.stateChanged.connect(self.update)
         self.noobject_pushbutton.clicked.connect(self.noobject)
+        self.activate_checkbox.stateChanged.connect(self.activate)
+        self.load_pushbutton.clicked.connect(self.load_settings)
+        self.save_pushbutton.clicked.connect(self.save_settings)
+        self.consistency_checkbox.stateChanged.connect(self.activate_consistency)
+
         MainWindow.setCentralWidget(self.centralwidget)
 
         # Actions
@@ -219,8 +244,10 @@ class Ui_MainWindow(object):
         open   = action('&Open', self.openFile,'Ctrl+O', 'open', u'Open image or label file')
         nextFrame = action('&Next Frame', self.nextFrame,'d', 'next', u'Next Frame')
         prevFrame = action('&Prev Frame', self.prevFrame,'a', 'prev', u'Previous Frame')
-        
-        self.actions = struct(quit=quit,open=open, nextFrame=nextFrame, prevFrame=prevFrame)
+        activate  = action('&Activate', self.activate_toggle, 'Space', 'actv', u'Activate')
+
+        self.actions = struct(quit=quit,open=open, nextFrame=nextFrame, 
+                              prevFrame=prevFrame, activate=activate)
 
 
         # Menus
@@ -234,10 +261,11 @@ class Ui_MainWindow(object):
         addActions(self.menus.file, (open, None, quit))
         addActions(self.menus.edit, (None,))
         addActions(self.menus.help, (None,))
-        addActions(self.menus.view, (prevFrame, nextFrame, None))
+        addActions(self.menus.view, (prevFrame, nextFrame, None, activate))
 
         addActions(self.pushbutton_next, (nextFrame,))
         addActions(self.pushbutton_prev, (prevFrame,))
+        addActions(self.activate_checkbox, (activate,))
 
 
     # def resetState(self):

@@ -4,12 +4,13 @@ import numpy as np
 
 class VideoPair:
     def __init__(self, ref_filepath, tar_filepath, rf_filepath,
-                 tcf_filepath, daomc_filepath):
+                 tcf_filepath, daomc_filepath, diss_filepath):
         
         # Initialising video Pair
         self.ref_video   = Video(ref_filepath)
         self.tar_video   = Video(tar_filepath)
         self.daomc_video = Video(daomc_filepath)
+        self.diss_video  = Video(diss_filepath)
 
         self.rf_names = [os.path.join(rf_filepath, 'dissimilarity_fold{0:02d}.avi'.format(f)) \
                           for f in range(1,10)]
@@ -92,6 +93,10 @@ class VideoPair:
                 mask_frame = np.ones_like(self.tar_video.get_frame(idx))
         else: 
             mask_frame = np.ones_like(tar_frame)
+
+
+        if self.mask == 'Resnet+Dissim':
+            mask_frame = self.diss_video.get_frame(idx)       
 
         return ref_frame, tar_frame, mask_frame*class_frame
 

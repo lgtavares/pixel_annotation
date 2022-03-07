@@ -10,6 +10,7 @@ import sys
 import cv2
 import numpy as np
 import pandas as pd
+import pickle
 
 # PyQt libraries
 from PyQt5 import QtCore, QtGui, QtWidgets
@@ -47,7 +48,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.tar_filename = None
         self.videopair    = None
         self.settings     = {}
-
+        self.consistency  = False
         self.video        = 0
         self.status       = struct(loadedFiles=False,)
         self.frame        = 0
@@ -60,7 +61,9 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.closing    = 5
         self.erosion    = 5
 
-        self.settings   = {}
+        self.anchor_frame = 0
+        self.consistency  = False
+        self.transform    = None
 
         self.setupUi(self)
         self.setup()
@@ -96,6 +99,9 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.admult_filename = os.path.join(dirname, 'admult')
         self.admult_filename = os.path.join(self.admult_filename, 
                                            'dissimilarity_video{0:02d}.avi'.format(self.video))
+        self.diss_filename = os.path.join(dirname, 'dissimilarity')
+        self.diss_filename = os.path.join(self.diss_filename, 
+                                         'dissimilarity_video{0:02d}.avi'.format(self.video))
 
         self.error(os.path.exists(self.ref_filename), 
                     'Error opening file {}.'.format(self.ref_filename)+
@@ -112,10 +118,13 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.error(os.path.exists(self.rf_filename), 
                     'Error opening folder\n {}.'.format(self.rf_filename)+
                     '\nMake sure it is a valid folder.')
+        self.error(os.path.exists(self.diss_filename), 
+                    'Error opening folder\n {}.'.format(self.diss_filename)+
+                    '\nMake sure it is a valid folder.')
 
         self.videopair = VideoPair(self.ref_filename, self.tar_filename,
                                    self.rf_filename, self.tcf_filename,
-                                   self.admult_filename)
+                                   self.admult_filename, self.diss_filename)
         self.status.loadedFiles = True
 
         # Temporary
@@ -201,15 +210,6 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.pushbutton_next.setEnabled(True)
             self.pushbutton_prev.setEnabled(True)
             self.frame_label.setText('/ {}'.format(self.num_frames))
-            self.class_groupbox.setEnabled(True)
-            self.post_groupbox.setEnabled(True)
-            self.vis_groupbox.setEnabled(True)
-            self.thresh_slider.setEnabled(True)
-            self.open_sbox.setEnabled(True)
-            self.close_sbox.setEnabled(True)
-            self.erode_sbox.setEnabled(True)
-            self.contour_checkbox.setEnabled(True)
-            self.fill_checkbox.setEnabled(True)
             self.noobject_pushbutton.setEnabled(True)
         
             if self.tcf_net_radio.isChecked() or self.rf_net_radio.isChecked():
@@ -237,6 +237,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         if self.frame < self.num_frames:
             self.frame += 1
             self.frame_slider.setValue(self.frame)
+            self.propag_settings()
             self.update()
 
     def prevFrame(self):
@@ -245,6 +246,10 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.frame -= 1
             self.frame_slider.setValue(self.frame)
             self.update()
+
+    def propag_settings(self):
+        if self.frame >0:
+            self.settings[self.frame]  = self.settings[self.frame-1].copy()
 
     def resizeEvent(self, event):
         if self.status.loadedFiles:
@@ -272,7 +277,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         struct_erosion  = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (self.erosion, self.erosion))
         
         # threshold
-        _, img = cv2.threshold(img, 255*self.threshold//100, 255, cv2.THRESH_BINARY)
+        _, img = cv2.threshold(img, self.threshold, 255, cv2.THRESH_BINARY)
 
         # opening
         img = cv2.morphologyEx(img, cv2.MORPH_OPEN, struct_opening)
@@ -316,7 +321,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
     
     def noobject(self):
         # mark the current frame as not having an object
-        self.write_setting('has_anomaly', False)
+        self.write_setting('has_object', False)
         # Go to the next frame
         self.nextFrame()
 
@@ -332,47 +337,51 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         frame_settings['threshold']  = None
         frame_settings['contour_fg'] = None
         frame_settings['contour_dc'] = None
-        self.settings = {i:frame_settings for i in range(self.num_frames)}
+        frame_settings['anchor']      = None
+        frame_settings['consistency'] = None
+        frame_settings['transform']   = None
+
+        self.settings = {i:frame_settings.copy() for i in range(self.num_frames)}
         self.settings['video'] = self.video
 
     def annotate(self):
         
-        self.write_setting('annotated', True)
         self.write_setting('mask', self.videopair.mask)
         self.write_setting('algorithm', self.videopair.mode)
         self.write_setting('opening', self.opening)
         self.write_setting('closing', self.closing)
         self.write_setting('erosion', self.erosion)
         self.write_setting('threshold', self.threshold)
-
-    def write_setting(self, setting, value, annotate=True):
-        self.settings[self.frame]['annotated'] = annotate
+        self.write_setting('anchor', self.anchor_frame)
+        self.write_setting('consistency', self.consistency)
+        self.write_setting('transform', self.transform)
+        
+    def write_setting(self, setting, value):
         self.settings[self.frame][setting] = value
 
     def load_settings(self):
-        pass
+
+        if os.path.exists(self.tar_filename.replace('.avi','.ann')):
+            with open(self.tar_filename.replace('.avi','.ann'), 'rb') as input_file:
+                self.settings = pickle.load(input_file)
+                self.ann_text.insertPlainText('Settings loaded !!\n')
+        else:
+            self.save_settings()
 
     def save_settings(self):
-        pass
-            
+        with open(self.tar_filename.replace('.avi','.ann'), 'wb') as output_file:
+            pickle.dump(self.settings, output_file)
+            self.ann_text.insertPlainText('Settings saved !!\n')
+
     def set_morphology(self):
         self.threshold = self.thresh_slider.value()
         self.closing   = self.close_sbox.value()
         self.opening   = self.open_sbox.value()
         self.erosion   = self.erode_sbox.value()
-        self.update()
-
-    # def create_table(self):
-
-    #     ss = pd.DataFrame(self.settings).T
-    #     ss = ss.iloc[:self.num_frames,:-2]
-            
-    #     self.ann_table.setHorizontalHeaderLabels(['Has object', 'Annotated', 'Mask',
-    #                                               'Algorithm', 'Opening', 'Closing', 'Erosion',
-    #                                               'Threshold'])
         
-    #     [[self.ann_table.setItem(r,c, QtWidgets.QTableWidgetItem(str(ss.iloc[r,c]))) 
-    #     for c in range(7)] for r in range(self.num_frames)]
+        self.thresh_label.setText(str(self.threshold))
+
+        self.update()
     
     def _print_text(self, frame):
 
@@ -398,8 +407,50 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.ann_text.insertPlainText(string)
 
 
+    def activate(self):
+        
+        if self.activate_checkbox.isChecked():
 
-            
+            self.class_groupbox.setEnabled(True)
+            self.post_groupbox.setEnabled(True)
+            self.vis_groupbox.setEnabled(True)
+            self.thresh_slider.setEnabled(True)
+            self.open_sbox.setEnabled(True)
+            self.close_sbox.setEnabled(True)
+            self.erode_sbox.setEnabled(True)
+            self.contour_checkbox.setEnabled(True)
+            self.fill_checkbox.setEnabled(True)
+            self.consistency_checkbox.setEnabled(True)
+            self.write_setting('annotated', True)
+
+        else:
+
+            self.class_groupbox.setEnabled(False)
+            self.post_groupbox.setEnabled(False)
+            self.thresh_slider.setEnabled(False)
+            self.open_sbox.setEnabled(False)
+            self.close_sbox.setEnabled(False)
+            self.erode_sbox.setEnabled(False)
+            self.contour_checkbox.setEnabled(False)
+            self.fill_checkbox.setEnabled(False)
+            self.consistency_checkbox.setEnabled(False)
+            self.write_setting('annotated', False)
+
+        self.update()
+
+    def activate_toggle(self):
+        self.activate_checkbox.setChecked(not self.activate_checkbox.isChecked())
+        
+    def activate_consistency(self):
+
+        self.anchor_frame = self.frame
+
+        if self.activate_checkbox.isChecked():
+            self.consistency = True
+        else:
+            self.consistency = False
+
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     win = MainWindow()
