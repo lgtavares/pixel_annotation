@@ -116,14 +116,21 @@ class Ui_MainWindow(object):
 
         optbox  = QtWidgets.QVBoxLayout()
         foldbox = QtWidgets.QHBoxLayout()
+        kbox    = QtWidgets.QHBoxLayout()
         self.fold_combobox = QtWidgets.QComboBox()
         self.fold_combobox.addItems(["All"]+[str(i) for i in range(1,10)])
         self.fold_combobox.setEnabled(False)
         foldbox.addWidget(QtWidgets.QLabel('Fold:'))
         foldbox.addWidget(self.fold_combobox)
+        self.k_sbox = QtWidgets.QSpinBox(self.centralwidget)
+        self.k_sbox.setEnabled(False)
+        self.k_sbox.setMinimum(2)
+        self.k_sbox.setValue(6)
+        kbox.addWidget(QtWidgets.QLabel('K-value:'))
+        kbox.addWidget(self.k_sbox)
         self.consistency_checkbox = QtWidgets.QCheckBox('Temporal consistency')
-        self.consistency_checkbox.setEnabled(False)
         optbox.addLayout(foldbox)
+        optbox.addLayout(kbox)
         optbox.addWidget(self.consistency_checkbox)
         opt_groupbox.setLayout(optbox)
 
@@ -198,7 +205,7 @@ class Ui_MainWindow(object):
         self.ann_text = QtWidgets.QTextBrowser()
         self.ann_text.setEnabled(False)
         self.ann_text.setMinimumHeight(170)
-        self.ann_text.setMinimumWidth(500)
+        self.ann_text.setMinimumWidth(700)
         post_layout.addWidget(self.ann_text)
 
   
@@ -218,6 +225,7 @@ class Ui_MainWindow(object):
         self.tcf_net_radio.clicked.connect(self.change_net)
         self.rf_net_radio.clicked.connect(self.change_net)
         self.km_net_radio.clicked.connect(self.change_net)
+        self.diss_radio.clicked.connect(self.change_net)
         self.admult_mask_radio.clicked.connect(self.change_mask)
         self.tcf_mask_radio.clicked.connect(self.change_mask)
         self.rf_mask_radio.clicked.connect(self.change_mask)
@@ -234,6 +242,7 @@ class Ui_MainWindow(object):
         self.activate_checkbox.stateChanged.connect(self.activate)
         self.load_pushbutton.clicked.connect(self.load_settings)
         self.save_pushbutton.clicked.connect(self.save_settings)
+        self.k_sbox.valueChanged['int'].connect(self.set_morphology)
         self.consistency_checkbox.stateChanged.connect(self.activate_consistency)
 
         MainWindow.setCentralWidget(self.centralwidget)

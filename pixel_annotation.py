@@ -8,6 +8,7 @@ To do:
 import os
 import sys
 import cv2
+from cv2 import COLOR_RGB2GRAY
 import numpy as np
 import pandas as pd
 import pickle
@@ -56,14 +57,16 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
         self.mask = None
         self.classifier = None
-        self.threshold  = 50
-        self.opening    = 5
-        self.closing    = 5
-        self.erosion    = 5
+        self.threshold  = 127
+        self.opening    = 1
+        self.closing    = 1
+        self.erosion    = 1
 
         self.anchor_frame = 0
         self.consistency  = False
         self.transform    = None
+        self.anchor_silhouette = None
+        self.anchor_target     = None
 
         self.setupUi(self)
         self.setup()
@@ -151,18 +154,6 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             ref_frame, tar_frame, net_frame = self.videopair.get_frame(self.frame)
             self.setImages(ref_frame, tar_frame, net_frame)
 
-    # TODO: update frame label
-    # def setFrameLabel(self):
-    #     frame = int(self.frame_edit.toPlainText())
-    #     if isinstance(frame, int) :
-    #         if frame < self.num_frames and frame>=0:
-    #             self.frame = frame
-    #             self.update()
-    #         else:
-    #             return QtWidgets.QMessageBox.critical(self, 'Error', ('Value must be integer between 1 and {}'.format(self.num_frames)))
-    #     else:
-    #         return QtWidgets.QMessageBox.critical(self, 'Error', ('Value must be integer'))
-
     def setImages(self, image_ref, image_tar, net_frames):
 
         # Post-processing
@@ -171,8 +162,11 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         img_show_ref = image_ref
         img_show_tar = self.draw_contour(image_tar,cnt_fg, cnt_dc)
 
-        # Contour
-        #image_tar = self.draw_contour(image_tar)
+        # Saving anchor frame
+        if self.frame == self.anchor_frame:
+            self.anchor_sil    = detection
+            self.anchor_target = image_tar
+
 
         self.frame_edit.setText('{}'.format(self.frame+1))
         if self.frame >=0 and self.frame<self.num_frames:
@@ -250,7 +244,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
     def propag_settings(self):
         if self.frame >0:
             self.settings[self.frame]  = self.settings[self.frame-1].copy()
-
+            
     def resizeEvent(self, event):
         if self.status.loadedFiles:
             self.update()
@@ -261,37 +255,60 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         radioButton = self.sender()
         if radioButton.isChecked():
             self.videopair.mode = radioButton.mode
+            self.consistency_checkbox.setChecked(False)
+            self.k_sbox.setEnabled(self.videopair.mode == 'K-means')
             self.update()
 
     def change_mask(self):
         radioButton = self.sender()
         if radioButton.isChecked():
             self.videopair.mask = radioButton.mask
+            self.consistency_checkbox.setChecked(False)
             self.update()
 
     def apply_morphology(self, img):
 
-        # structures
-        struct_opening  = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (self.opening, self.opening))
-        struct_closing  = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (self.closing, self.closing))
-        struct_erosion  = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (self.erosion, self.erosion))
-        
-        # threshold
-        _, img = cv2.threshold(img, self.threshold, 255, cv2.THRESH_BINARY)
-
-        # opening
-        img = cv2.morphologyEx(img, cv2.MORPH_OPEN, struct_opening)
-
-        # closing
-        img = cv2.morphologyEx(img, cv2.MORPH_CLOSE, struct_closing)
-
-        # erosion
-        foreground = cv2.morphologyEx(img, cv2.MORPH_ERODE,  struct_erosion, borderType = cv2.BORDER_CONSTANT, borderValue = 0) 
-        dontcare   = cv2.morphologyEx(img, cv2.MORPH_DILATE, struct_erosion, borderType = cv2.BORDER_CONSTANT, borderValue = 0)         
-
-        cnt_fg, cnt_dc = self.get_contours(foreground, dontcare)
+        if self.consistency_checkbox.isChecked():
             
-        return img, cnt_fg, cnt_dc
+            # set detection
+            detection   = self.anchor_sil 
+
+            # warp anchor detection
+            warped_detection = self.warpFrame(detection)
+
+            # extracting contours
+            gray_det   = cv2.cvtColor(warped_detection, cv2.COLOR_RGB2GRAY) 
+            foreground = cv2.cvtColor(255*(gray_det > 200).astype('uint8'), cv2.COLOR_GRAY2RGB) 
+            dontcare   = cv2.cvtColor(255*(gray_det > 50).astype('uint8'), cv2.COLOR_GRAY2RGB) 
+
+            cnt_fg, cnt_dc = self.get_contours(foreground, dontcare)
+
+        else:
+            
+
+            # structures
+            struct_opening  = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (self.opening, self.opening))
+            struct_closing  = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (self.closing, self.closing))
+            struct_erosion  = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (self.erosion, self.erosion))
+            
+            # threshold
+            _, img = cv2.threshold(img, self.threshold, 255, cv2.THRESH_BINARY)
+
+            # opening
+            img = cv2.morphologyEx(img, cv2.MORPH_OPEN, struct_opening)
+
+            # closing
+            img = cv2.morphologyEx(img, cv2.MORPH_CLOSE, struct_closing)
+
+            # erosion
+            foreground = cv2.morphologyEx(img, cv2.MORPH_ERODE,  struct_erosion, borderType = cv2.BORDER_CONSTANT, borderValue = 0) 
+            dontcare   = cv2.morphologyEx(img, cv2.MORPH_DILATE, struct_erosion, borderType = cv2.BORDER_CONSTANT, borderValue = 0)         
+
+            cnt_fg, cnt_dc = self.get_contours(foreground, dontcare)
+
+            detection = foreground//2 + dontcare//2
+   
+        return detection, cnt_fg, cnt_dc
 
 
     def get_contours(self, foreground, dontcare):
@@ -307,8 +324,8 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
         alpha = 0.5
         if self.contour_checkbox.isChecked():
-            cv2.drawContours(img, contours_fg, -1, (191, 64, 64, 0.5), 2) 
             cv2.drawContours(img, contours_dc, -1, (0,102, 204, 0.5), 2) 
+            cv2.drawContours(img, contours_fg, -1, (191, 64, 64, 0.5), 2) 
 
         result_img = img.copy()
 
@@ -331,13 +348,13 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         frame_settings['has_object'] = None
         frame_settings['mask']       = None
         frame_settings['algorithm']  = None
-        frame_settings['opening']    = None
-        frame_settings['closing']    = None
-        frame_settings['erosion']    = None
-        frame_settings['threshold']  = None
+        frame_settings['opening']    = 0
+        frame_settings['closing']    = 0
+        frame_settings['erosion']    = 0
+        frame_settings['threshold']  = 127
         frame_settings['contour_fg'] = None
         frame_settings['contour_dc'] = None
-        frame_settings['anchor']      = None
+        frame_settings['anchor']      = 0
         frame_settings['consistency'] = None
         frame_settings['transform']   = None
 
@@ -378,9 +395,10 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.closing   = self.close_sbox.value()
         self.opening   = self.open_sbox.value()
         self.erosion   = self.erode_sbox.value()
-        
+        self.K         = self.k_sbox.value()
         self.thresh_label.setText(str(self.threshold))
 
+        self.consistency_checkbox.setChecked(False)
         self.update()
     
     def _print_text(self, frame):
@@ -396,15 +414,21 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
     def _print_line(self, f):
 
         frm_set = self.settings[f]
-        string  = 'Frame {}:  {}, {}, {}, {}, {}, {}, {}\n'.format(f, frm_set['has_object'],
-                                                                   frm_set['annotated'],
-                                                                   frm_set['mask'],
-                                                                   frm_set['algorithm'],
-                                                                   frm_set['opening'],
-                                                                   frm_set['closing'],
-                                                                   frm_set['erosion'],
-                                                                   frm_set['threshold'])
-        self.ann_text.insertPlainText(string)
+        print_str  = 'Frame {0:>4d}:'.format(f+1)
+        print_str += '{0},'.format(frm_set['has_object'])
+        print_str += '{0},'.format(frm_set['annotated'])
+        print_str += '{0},'.format(frm_set['mask'])
+        print_str += '{0},['.format(frm_set['algorithm'])
+        print_str += '{0},'.format(frm_set['opening'])
+        print_str += '{0},'.format(frm_set['closing'])
+        print_str += '{0},'.format(frm_set['erosion'])
+        print_str += '{0}],['.format(frm_set['threshold'])
+        print_str += '{0},'.format(frm_set['anchor'])
+        print_str += '{0}]'.format(frm_set['consistency'])
+        print_str += '\n'
+
+
+        self.ann_text.insertPlainText(print_str)
 
 
     def activate(self):
@@ -420,7 +444,6 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.erode_sbox.setEnabled(True)
             self.contour_checkbox.setEnabled(True)
             self.fill_checkbox.setEnabled(True)
-            self.consistency_checkbox.setEnabled(True)
             self.write_setting('annotated', True)
 
         else:
@@ -433,7 +456,6 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.erode_sbox.setEnabled(False)
             self.contour_checkbox.setEnabled(False)
             self.fill_checkbox.setEnabled(False)
-            self.consistency_checkbox.setEnabled(False)
             self.write_setting('annotated', False)
 
         self.update()
@@ -449,7 +471,46 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.consistency = True
         else:
             self.consistency = False
+        self.update()
 
+    def warpFrame(self, detection):
+
+        # Initiate SIFT detector
+        sift = cv2.SIFT_create()
+
+
+        # Get frames
+        _, current_frm, _ = self.videopair.get_frame(self.frame)
+        anchor_frm = self.anchor_target
+
+        kp1, des1 = sift.detectAndCompute(anchor_frm,None)
+        kp2, des2 = sift.detectAndCompute(current_frm,None)
+
+        index_params = dict(algorithm = 1, trees = 5)
+        search_params = dict(checks = 50)
+        flann = cv2.FlannBasedMatcher(index_params, search_params)
+        matches = flann.knnMatch(des1,des2,k=2)
+
+        good = []
+        for m,n in matches:
+            if m.distance < 0.7*n.distance:
+                good.append(m)
+
+        # Select good matched keypoints
+        src_pts = np.float32([ kp1[m.queryIdx].pt for m in good ]).reshape(-1,1,2)
+        dst_pts = np.float32([ kp2[m.trainIdx].pt for m in good ]).reshape(-1,1,2)
+        
+        # Compute homography
+        H, _ = cv2.findHomography(src_pts, dst_pts, method=cv2.RANSAC, ransacReprojThreshold=5.0)
+        warped_det = cv2.warpPerspective(detection, H, (detection.shape[1], detection.shape[0]))
+
+        # Save Homography
+        self.transform = H
+        self.write_setting('transform', self.transform)
+
+        # apply threshold
+
+        return warped_det
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
