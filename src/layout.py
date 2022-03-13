@@ -102,16 +102,19 @@ class Ui_MainWindow(object):
         self.rf_net_radio      = QtWidgets.QRadioButton('Resnet+RF')
         self.diss_radio        = QtWidgets.QRadioButton('Resnet+Dissim')
         self.km_net_radio      = QtWidgets.QRadioButton('K-means')
+        self.none_net_radio      = QtWidgets.QRadioButton('None')
         self.admult_net_radio.mode  = 'ADMULT'
         self.tcf_net_radio.mode     = 'TCF-LMO'
         self.rf_net_radio.mode      = 'Resnet+RF'
         self.diss_radio.mode        = 'Resnet+Dissim'
         self.km_net_radio.mode      = 'K-means'
+        self.none_net_radio.mode      = 'K-means'
         classbox.addWidget(self.admult_net_radio)
         classbox.addWidget(self.tcf_net_radio)
         classbox.addWidget(self.rf_net_radio)
         classbox.addWidget(self.diss_radio)
         classbox.addWidget(self.km_net_radio)
+        classbox.addWidget(self.none_net_radio)
         net_groupbox.setLayout(classbox)
 
         optbox  = QtWidgets.QVBoxLayout()
@@ -225,6 +228,7 @@ class Ui_MainWindow(object):
         self.tcf_net_radio.clicked.connect(self.change_net)
         self.rf_net_radio.clicked.connect(self.change_net)
         self.km_net_radio.clicked.connect(self.change_net)
+        self.none_net_radio.clicked.connect(self.change_net)
         self.diss_radio.clicked.connect(self.change_net)
         self.admult_mask_radio.clicked.connect(self.change_mask)
         self.tcf_mask_radio.clicked.connect(self.change_mask)

@@ -381,6 +381,8 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         if os.path.exists(self.tar_filename.replace('.avi','.ann')):
             with open(self.tar_filename.replace('.avi','.ann'), 'rb') as input_file:
                 self.settings = pickle.load(input_file)
+                last_frame = list(pd.DataFrame(self.settings).T.annotated).index(False)-1
+                self.frame_slider.setValue(last_frame)
                 self.ann_text.insertPlainText('Settings loaded !!\n')
         else:
             self.save_settings()

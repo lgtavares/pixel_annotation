@@ -64,7 +64,9 @@ class VideoPair:
         elif self.mode == 'K-means':
             class_frame = self.kmeans(ref_frame, tar_frame, self.K)
         elif self.mode == 'Resnet+Dissim':
-            class_frame = self.diss_video.get_frame(idx)     
+            class_frame = self.diss_video.get_frame(idx)    
+        elif self.mode == 'None':
+            class_frame = np.zeros_like(self.tar_video.get_frame(idx))
         else: 
             pass
 
