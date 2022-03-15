@@ -514,6 +514,11 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
         return warped_det
 
+    def set_rect(self):
+        self.box_rect = self.graphicview_tar.box_rect
+        box = self.graphicview_tar.mapToScene(self.box_rect).boundingRect()
+        self.scene_tar.addRect(box)
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     win = MainWindow()

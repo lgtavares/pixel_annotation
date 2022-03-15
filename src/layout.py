@@ -108,7 +108,7 @@ class Ui_MainWindow(object):
         self.rf_net_radio.mode      = 'Resnet+RF'
         self.diss_radio.mode        = 'Resnet+Dissim'
         self.km_net_radio.mode      = 'K-means'
-        self.none_net_radio.mode      = 'K-means'
+        self.none_net_radio.mode      = 'None'
         classbox.addWidget(self.admult_net_radio)
         classbox.addWidget(self.tcf_net_radio)
         classbox.addWidget(self.rf_net_radio)
@@ -211,8 +211,6 @@ class Ui_MainWindow(object):
         self.ann_text.setMinimumWidth(700)
         post_layout.addWidget(self.ann_text)
 
-  
-
         self.vis_groupbox.setLayout(post_layout)
 
 
@@ -248,7 +246,7 @@ class Ui_MainWindow(object):
         self.save_pushbutton.clicked.connect(self.save_settings)
         self.k_sbox.valueChanged['int'].connect(self.set_morphology)
         self.consistency_checkbox.stateChanged.connect(self.activate_consistency)
-
+        self.graphicview_tar.rectChanged.connect(self.set_rect)
         MainWindow.setCentralWidget(self.centralwidget)
 
         # Actions
