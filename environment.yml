@@ -1,0 +1,9 @@
+name: pixel-annotation
+channels:
+  - defaults
+dependencies:
+  - python=3.10
+  - numpy
+  - pandas
+  - pyqt
+prefix: /home/luiz.tavares/.local/miniconda3/envs/pixel-annotation
