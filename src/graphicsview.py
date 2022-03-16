@@ -11,6 +11,9 @@ class GraphicsView(QtWidgets.QGraphicsView):
         self.changeRubberBand = False
 
     def mousePressEvent(self, event):
+        if event.button() == QtCore.Qt.RightButton:
+            self.rectChanged.emit(QtCore.QRect(-1,-1,-1,-1))
+
         self.origin = event.pos()
         self.rubberBand.setGeometry(QtCore.QRect(self.origin, QtCore.QSize()))
         #self.rectChanged.emit(self.rubberBand.geometry())
@@ -29,6 +32,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
         self.box_rect = QtCore.QRect(self.rubberBand.x(),self.rubberBand.y(),self.rubberBand.rect().getRect()[2],self.rubberBand.rect().getRect()[3])
         self.create_box(self.box_rect)
         QtWidgets.QGraphicsView.mouseReleaseEvent(self, event)
+        self.rubberBand.hide()
 
     def create_box(self, rect: QtCore.QRect):
         self.rectChanged.emit(rect)

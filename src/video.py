@@ -24,7 +24,7 @@ class VideoPair:
         self.mask      = None
         self.K         = 6
         self.fold      = 0
-
+        self.rect      = None
   
     def get_frame(self, idx):
 
@@ -99,7 +99,18 @@ class VideoPair:
             mask_frame = np.ones_like(tar_frame)
 
 
-  
+        # Bounding box
+        rect_img = np.ones_like(tar_frame)
+        if len(self.rect)>0:
+            rect_img = np.zeros_like(tar_frame)
+
+            for rect_vec in self.rect:
+                rect_img[rect_vec[1]:rect_vec[1]+rect_vec[3],rect_vec[0]:rect_vec[0]+rect_vec[2]] = 1
+
+        if 0 in mask_frame:
+            mask_frame = mask_frame*rect_img
+        else:
+            mask_frame = rect_img
 
         return ref_frame, tar_frame, mask_frame*class_frame
 

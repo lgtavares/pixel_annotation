@@ -148,8 +148,13 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.enableWidgets()
         self.annotate()
         self._print_text(self.frame)
-               
+
+
+
         if self.status.loadedFiles:
+
+            # setting bounding box
+            self.videopair.rect = self.settings[self.frame]['bbox']
 
             ref_frame, tar_frame, net_frame = self.videopair.get_frame(self.frame)
             self.setImages(ref_frame, tar_frame, net_frame)
@@ -357,6 +362,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         frame_settings['anchor']      = 0
         frame_settings['consistency'] = None
         frame_settings['transform']   = None
+        frame_settings['bbox']        = []
 
         self.settings = {i:frame_settings.copy() for i in range(self.num_frames)}
         self.settings['video'] = self.video
@@ -515,9 +521,15 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         return warped_det
 
     def set_rect(self):
-        self.box_rect = self.graphicview_tar.box_rect
-        box = self.graphicview_tar.mapToScene(self.box_rect).boundingRect()
-        self.scene_tar.addRect(box)
+        if -1 in self.graphicview_tar.box_rect.getRect():
+            self.settings[self.frame]['bbox'] = []
+        else:
+            self.box_rect = self.graphicview_tar.box_rect
+            box = self.graphicview_tar.mapToScene(self.box_rect).boundingRect()
+            self.settings[self.frame]['bbox'].append([int(i) for i in box.getRect()])
+
+        self.update()
+            
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
