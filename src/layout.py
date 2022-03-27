@@ -103,7 +103,8 @@ class Ui_MainWindow(object):
         self.rf_net_radio.mode      = 'Resnet+RF'
         self.diss_radio.mode        = 'Resnet+Dissim'
         self.km_net_radio.mode      = 'K-means'
-        self.none_net_radio.mode      = 'None'
+        self.none_net_radio.mode     = None
+        self.none_net_radio.setChecked(True)
         classbox.addWidget(self.tcf_net_radio)
         classbox.addWidget(self.rf_net_radio)
         classbox.addWidget(self.diss_radio)

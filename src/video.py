@@ -7,15 +7,15 @@ class VideoPair:
                  tcf_filepath, admult_filepath, diss_filepath):
         
         # admult file paths
-        admult20_filepath = admult_filepath.replace('admult/dissimilarity_video','vid').replace('.avi','_dilate20.avi')
-        admult40_filepath = admult_filepath.replace('admult/dissimilarity_video','vid').replace('.avi','_dilate40.avi')
+        admult20_filepath = admult_filepath.replace('admult/dissimilarity_video','admult_dilate/vid').replace('.avi','_dilate20.avi')
+        admult40_filepath = admult_filepath.replace('admult/dissimilarity_video','admult_dilate/vid').replace('.avi','_dilate40.avi')
 
         # Initialising video Pair
         self.ref_video   = Video(ref_filepath)
         self.tar_video   = Video(tar_filepath)
         self.admult_video   = Video(admult_filepath)
         self.admult20_video = Video(admult20_filepath)
-        self.admult40_video = Video(admult_admult40_filepathfilepath)
+        self.admult40_video = Video(admult40_filepath)
         self.diss_video  = Video(diss_filepath)
 
         self.rf_names = [os.path.join(rf_filepath, 'dissimilarity_fold{0:02d}.avi'.format(f)) \
@@ -25,8 +25,7 @@ class VideoPair:
             
         self.rf_videos     = [Video(v) for v in self.rf_names]
         self.tcf_videos    = [Video(v) for v in self.tcf_names]
-        self.admult_videos = [Video(v) for v in [self.admult_video, 
-                              self.admult20_video, self.admult40_video]]
+        self.admult_videos = [self.admult_video, self.admult20_video, self.admult40_video]
 
         self.mode      = None
         self.mask      = None
@@ -43,6 +42,21 @@ class VideoPair:
         tar_frame   = self.tar_video.get_frame(idx)
         mask_frame  = np.ones_like(ref_frame)
         class_frame = np.zeros_like(ref_frame)
+
+        # Masks 
+        if self.mask == 'ADMULT':
+            mask_frame = self.admult_videos[0].get_frame(idx)       
+            mask_frame = (mask_frame>127).astype('uint8')
+            
+        elif self.mask == 'ADMULT-20':
+            mask_frame = self.admult_videos[1].get_frame(idx)       
+            mask_frame = (mask_frame>127).astype('uint8')
+  
+        elif self.mask == 'ADMULT-40':
+            mask_frame = self.admult_videos[2].get_frame(idx)       
+            mask_frame = (mask_frame>127).astype('uint8')
+        else: 
+            mask_frame = np.ones_like(tar_frame)
 
         if self.mode == 'TCF-LMO':
             frames_tcf = (frames_tcf > 127)
@@ -70,25 +84,10 @@ class VideoPair:
             class_frame = self.kmeans(ref_frame, tar_frame, self.K)
         elif self.mode == 'Resnet+Dissim':
             class_frame = self.diss_video.get_frame(idx)    
-        elif self.mode == 'None':
+        elif self.mode == None:
             class_frame = np.zeros_like(self.tar_video.get_frame(idx))
         else: 
             pass
-
-        # Masks 
-        if self.mask == 'ADMULT':
-            mask_frame = self.admult_videos[0].get_frame(idx)       
-            mask_frame = (mask_frame>127).astype('uint8')
-            
-        elif self.mask == 'ADMULT-20':
-            mask_frame = self.admult_videos[1].get_frame(idx)       
-            mask_frame = (mask_frame>127).astype('uint8')
-  
-        elif self.mask == 'ADMULT-40':
-            mask_frame = self.admult_videos[2].get_frame(idx)       
-            mask_frame = (mask_frame>127).astype('uint8')
-        else: 
-            mask_frame = np.ones_like(tar_frame)
 
 
         # Bounding box
@@ -101,10 +100,17 @@ class VideoPair:
 
         if 0 in mask_frame:
             mask_frame = mask_frame*rect_img
+
         else:
             mask_frame = rect_img
 
-        return ref_frame, tar_frame, mask_frame*class_frame
+        # Mask multiplication
+        if self.mask != None and self.mode == None:
+            ret_frame = 255*mask_frame
+        else:
+            ret_frame = mask_frame*class_frame
+
+        return ref_frame, tar_frame, ret_frame
 
     def kmeans(self, ref_frame, tar_frame, K):
         h, _, _ = tar_frame.shape

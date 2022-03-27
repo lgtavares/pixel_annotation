@@ -499,7 +499,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
 
         # Get frames
-        _, current_frm, _ = self.videopair.get_frame(self.frame)
+        _, current_frm, _  = self.videopair.get_frame(self.frame)
         anchor_frm = self.anchor_target
 
         kp1, des1 = sift.detectAndCompute(anchor_frm,None)
