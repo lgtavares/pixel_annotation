@@ -102,6 +102,11 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.admult_filename = os.path.join(dirname, 'admult')
         self.admult_filename = os.path.join(self.admult_filename, 
                                            'dissimilarity_video{0:02d}.avi'.format(self.video))
+        admult_dilate = os.path.join(dirname, 'admult_dilate')
+        self.admult20_filename = os.path.join(admult_dilate, 
+                                              'vid{0:02d}_dilate20.avi'.format(self.video)) 
+        self.admult40_filename = os.path.join(admult_dilate, 
+                                              'vid{0:02d}_dilate40.avi'.format(self.video))           
         self.diss_filename = os.path.join(dirname, 'dissimilarity')
         self.diss_filename = os.path.join(self.diss_filename, 
                                          'dissimilarity_video{0:02d}.avi'.format(self.video))
@@ -113,6 +118,12 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
                     'Error opening file\n {}.'.format(self.tar_filename)+
                     '\nMake sure it is a valid file.')
         self.error(os.path.exists(self.admult_filename), 
+                    'Error opening file\n {}.'.format(self.admult_filename)+
+                    '\nMake sure it is a valid file.')
+        self.error(os.path.exists(self.admult20_filename), 
+                    'Error opening file\n {}.'.format(self.admult_filename)+
+                    '\nMake sure it is a valid file.')
+        self.error(os.path.exists(self.admult40_filename), 
                     'Error opening file\n {}.'.format(self.admult_filename)+
                     '\nMake sure it is a valid file.')
         self.error(os.path.exists(self.tcf_filename), 

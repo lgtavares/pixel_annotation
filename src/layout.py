@@ -78,38 +78,32 @@ class Ui_MainWindow(object):
         mask_groupbox = QtWidgets.QGroupBox('Mask',self.centralwidget)
         net_groupbox  = QtWidgets.QGroupBox('Algorithm',self.centralwidget)
         opt_groupbox  = QtWidgets.QGroupBox('Options',self.centralwidget)
-        self.admult_mask_radio  = QtWidgets.QRadioButton('ADMULT')
-        self.tcf_mask_radio    = QtWidgets.QRadioButton('TCF-LMO')
-        self.rf_mask_radio     = QtWidgets.QRadioButton('Resnet+RF')
-        self.km_mask_radio     = QtWidgets.QRadioButton('K-means')
+        self.admult_mask_radio   = QtWidgets.QRadioButton('ADMULT')
+        self.admult20_mask_radio  = QtWidgets.QRadioButton('ADMULT-20')
+        self.admult40_mask_radio  = QtWidgets.QRadioButton('ADMULT-40')
         self.none_mask_radio   = QtWidgets.QRadioButton('None')
         self.admult_mask_radio.mask  = 'ADMULT'
-        self.tcf_mask_radio.mask   = 'TCF-LMO'
-        self.rf_mask_radio.mask   = 'Resnet+RF'
-        self.km_mask_radio.mask = 'K-means'
+        self.admult20_mask_radio.mask  = 'ADMULT-20'
+        self.admult40_mask_radio.mask  = 'ADMULT-40'
         self.none_mask_radio.mask = None
         self.none_mask_radio.setChecked(True)
         maskbox = QtWidgets.QVBoxLayout()
         maskbox.addWidget(self.admult_mask_radio)
-        maskbox.addWidget(self.tcf_mask_radio)
-        maskbox.addWidget(self.rf_mask_radio)
-        maskbox.addWidget(self.km_mask_radio)
+        maskbox.addWidget(self.admult20_mask_radio)
+        maskbox.addWidget(self.admult40_mask_radio)
         maskbox.addWidget(self.none_mask_radio)
         mask_groupbox.setLayout(maskbox)
         classbox = QtWidgets.QVBoxLayout()
-        self.admult_net_radio  = QtWidgets.QRadioButton('ADMULT')
         self.tcf_net_radio     = QtWidgets.QRadioButton('TCF-LMO')
         self.rf_net_radio      = QtWidgets.QRadioButton('Resnet+RF')
         self.diss_radio        = QtWidgets.QRadioButton('Resnet+Dissim')
         self.km_net_radio      = QtWidgets.QRadioButton('K-means')
         self.none_net_radio      = QtWidgets.QRadioButton('None')
-        self.admult_net_radio.mode  = 'ADMULT'
         self.tcf_net_radio.mode     = 'TCF-LMO'
         self.rf_net_radio.mode      = 'Resnet+RF'
         self.diss_radio.mode        = 'Resnet+Dissim'
         self.km_net_radio.mode      = 'K-means'
         self.none_net_radio.mode      = 'None'
-        classbox.addWidget(self.admult_net_radio)
         classbox.addWidget(self.tcf_net_radio)
         classbox.addWidget(self.rf_net_radio)
         classbox.addWidget(self.diss_radio)
@@ -188,6 +182,8 @@ class Ui_MainWindow(object):
         self.fill_checkbox    = QtWidgets.QCheckBox('Fill contours')
         self.contour_checkbox.setEnabled(False)
         self.fill_checkbox.setEnabled(False)
+        self.contour_checkbox.setChecked(True)
+        self.fill_checkbox.setChecked(True)
         contour_layout.addWidget(self.contour_checkbox)
         contour_layout.addWidget(self.fill_checkbox)
         self.noobject_pushbutton = QtWidgets.QPushButton('Skip frame', self.centralwidget)
@@ -222,16 +218,14 @@ class Ui_MainWindow(object):
         self.frame_slider.valueChanged.connect(self.setFrame)
         self.pushbutton_next.clicked.connect(self.nextFrame)
         self.pushbutton_prev.clicked.connect(self.prevFrame)
-        self.admult_net_radio.clicked.connect(self.change_net)
         self.tcf_net_radio.clicked.connect(self.change_net)
         self.rf_net_radio.clicked.connect(self.change_net)
         self.km_net_radio.clicked.connect(self.change_net)
         self.none_net_radio.clicked.connect(self.change_net)
         self.diss_radio.clicked.connect(self.change_net)
         self.admult_mask_radio.clicked.connect(self.change_mask)
-        self.tcf_mask_radio.clicked.connect(self.change_mask)
-        self.rf_mask_radio.clicked.connect(self.change_mask)
-        self.km_mask_radio.clicked.connect(self.change_mask)
+        self.admult20_mask_radio.clicked.connect(self.change_mask)
+        self.admult40_mask_radio.clicked.connect(self.change_mask)
         self.none_mask_radio.clicked.connect(self.change_mask)
         self.thresh_slider.valueChanged['int'].connect(self.set_morphology)
         self.open_sbox.valueChanged['int'].connect(self.set_morphology)

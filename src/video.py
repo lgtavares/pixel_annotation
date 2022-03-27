@@ -6,10 +6,16 @@ class VideoPair:
     def __init__(self, ref_filepath, tar_filepath, rf_filepath,
                  tcf_filepath, admult_filepath, diss_filepath):
         
+        # admult file paths
+        admult20_filepath = admult_filepath.replace('admult/dissimilarity_video','vid').replace('.avi','_dilate20.avi')
+        admult40_filepath = admult_filepath.replace('admult/dissimilarity_video','vid').replace('.avi','_dilate40.avi')
+
         # Initialising video Pair
         self.ref_video   = Video(ref_filepath)
         self.tar_video   = Video(tar_filepath)
-        self.admult_video = Video(admult_filepath)
+        self.admult_video   = Video(admult_filepath)
+        self.admult20_video = Video(admult20_filepath)
+        self.admult40_video = Video(admult_admult40_filepathfilepath)
         self.diss_video  = Video(diss_filepath)
 
         self.rf_names = [os.path.join(rf_filepath, 'dissimilarity_fold{0:02d}.avi'.format(f)) \
@@ -17,8 +23,10 @@ class VideoPair:
         self.tcf_names = [os.path.join(tcf_filepath, 'dissimilarity_fold{0:02d}.avi'.format(f)) \
                           for f in range(1,10)]
             
-        self.rf_videos  = [Video(v) for v in self.rf_names]
-        self.tcf_videos = [Video(v) for v in self.tcf_names]
+        self.rf_videos     = [Video(v) for v in self.rf_names]
+        self.tcf_videos    = [Video(v) for v in self.tcf_names]
+        self.admult_videos = [Video(v) for v in [self.admult_video, 
+                              self.admult20_video, self.admult40_video]]
 
         self.mode      = None
         self.mask      = None
@@ -36,10 +44,7 @@ class VideoPair:
         mask_frame  = np.ones_like(ref_frame)
         class_frame = np.zeros_like(ref_frame)
 
-        if self.mode == 'ADMULT':
-            class_frame = self.admult_video.get_frame(idx)       
-
-        elif self.mode == 'TCF-LMO':
+        if self.mode == 'TCF-LMO':
             frames_tcf = (frames_tcf > 127)
 
             if self.fold==0:
@@ -70,31 +75,18 @@ class VideoPair:
         else: 
             pass
 
+        # Masks 
         if self.mask == 'ADMULT':
-            mask_frame = self.admult_video.get_frame(idx)       
+            mask_frame = self.admult_videos[0].get_frame(idx)       
             mask_frame = (mask_frame>127).astype('uint8')
             
-        elif self.mask == 'TCF-LMO':
-            frames_tcf = (frames_tcf > 127)
-
-            if self.fold==0:
-                mask_frame = np.sum(frames_tcf, axis=0)
-                mask_frame = (mask_frame/9).astype('uint8')
-            elif self.fold in list(range(1,10)):
-                mask_frame = frames_tcf[self.fold-1].astype('uint8')
-            else:
-                mask_frame = np.ones_like(self.tar_video.get_frame(idx))
+        elif self.mask == 'ADMULT-20':
+            mask_frame = self.admult_videos[1].get_frame(idx)       
+            mask_frame = (mask_frame>127).astype('uint8')
   
-        elif self.mask == 'Resnet+RF':
-            frames_rf = (frames_rf > 127)
-            if self.fold==0:
-                mask_frame = np.sum(mask_frame, axis=0)
-                mask_frame = (mask_frame/9).astype('uint8')
-            elif self.fold in list(range(1,10)):
-                mask_frame = frames_rf[self.fold-1]
-                mask_frame = mask_frame.astype('uint8')
-            else:
-                mask_frame = np.ones_like(self.tar_video.get_frame(idx))
+        elif self.mask == 'ADMULT-40':
+            mask_frame = self.admult_videos[2].get_frame(idx)       
+            mask_frame = (mask_frame>127).astype('uint8')
         else: 
             mask_frame = np.ones_like(tar_frame)
 
