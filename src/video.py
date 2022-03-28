@@ -100,13 +100,16 @@ class VideoPair:
 
         if 0 in mask_frame:
             mask_frame = mask_frame*rect_img
-
         else:
             mask_frame = rect_img
 
         # Mask multiplication
         if self.mask != None and self.mode == None:
             ret_frame = 255*mask_frame
+        elif self.mask == None and self.mode != None:
+            ret_frame = class_frame
+        elif self.mask == None and self.mode == None:
+            ret_frame = np.zeros_like(tar_frame)
         else:
             ret_frame = mask_frame*class_frame
 

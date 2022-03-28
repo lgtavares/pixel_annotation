@@ -68,6 +68,11 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.anchor_silhouette = None
         self.anchor_target     = None
 
+        self.bboxes = []
+        self.contour_dc = None
+        self.contour_fg = None
+
+
         self.setupUi(self)
         self.setup()
 
@@ -161,28 +166,37 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self._print_text(self.frame)
 
 
-
         if self.status.loadedFiles:
 
             # setting bounding box
-            self.videopair.rect = self.settings[self.frame]['bbox']
+            self.bboxes = self.settings[self.frame]['bbox']
+            self.videopair.rect = self.bboxes
 
             ref_frame, tar_frame, net_frame = self.videopair.get_frame(self.frame)
             self.setImages(ref_frame, tar_frame, net_frame)
 
     def setImages(self, image_ref, image_tar, net_frames):
 
-        # Post-processing
-        detection, cnt_fg, cnt_dc = self.apply_morphology(net_frames)
+        # Checking if the frame is already annotated
+        if self.settings[self.frame]['annotated'] :
 
-        img_show_ref = image_ref
-        img_show_tar = self.draw_contour(image_tar,cnt_fg, cnt_dc)
+            img_show_ref = image_ref
+            img_show_tar =  self.draw_contour(image_tar, 
+                              self.settings[self.frame]['contour_fg'], 
+                              self.settings[self.frame]['contour_dc'])
+        else:
+            # Post-processing
+            detection, cnt_fg, cnt_dc = self.apply_morphology(net_frames)
+            self.contour_fg = cnt_fg
+            self.contour_dc = cnt_dc
 
-        # Saving anchor frame
-        if self.frame == self.anchor_frame:
-            self.anchor_sil    = detection
-            self.anchor_target = image_tar
+            img_show_ref = image_ref
+            img_show_tar = self.draw_contour(image_tar,cnt_fg, cnt_dc)
 
+            # Saving anchor frame
+            if self.frame == self.anchor_frame:
+                self.anchor_sil    = detection
+                self.anchor_target = image_tar
 
         self.frame_edit.setText('{}'.format(self.frame+1))
         if self.frame >=0 and self.frame<self.num_frames:
@@ -389,7 +403,11 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.write_setting('anchor', self.anchor_frame)
         self.write_setting('consistency', self.consistency)
         self.write_setting('transform', self.transform)
-        
+        self.write_setting('contour_fg', self.contour_fg)
+        self.write_setting('contour_dc', self.contour_dc)
+        self.write_setting('bbox', self.bboxes)
+
+
     def write_setting(self, setting, value):
         self.settings[self.frame][setting] = value
 
@@ -443,9 +461,11 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         print_str += '{0},'.format(frm_set['erosion'])
         print_str += '{0}],['.format(frm_set['threshold'])
         print_str += '{0},'.format(frm_set['anchor'])
-        print_str += '{0}]'.format(frm_set['consistency'])
+        print_str += '{0}],'.format(frm_set['consistency'])
+        print_str += '[{0},'.format(self.contour_fg!=None)
+        print_str += '{0}]'.format(self.contour_dc!=None)
+        print_str += '[{0}]'.format(len(frm_set['bbox']))
         print_str += '\n'
-
 
         self.ann_text.insertPlainText(print_str)
 
@@ -533,12 +553,13 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
     def set_rect(self):
         if -1 in self.graphicview_tar.box_rect.getRect():
-            self.settings[self.frame]['bbox'] = []
+            self.bboxes = []
+            #self.settings[self.frame]['bbox'] = self.bboxes
         else:
-            self.box_rect = self.graphicview_tar.box_rect
-            box = self.graphicview_tar.mapToScene(self.box_rect).boundingRect()
-            self.settings[self.frame]['bbox'].append([int(i) for i in box.getRect()])
-
+            box_rect = self.graphicview_tar.box_rect
+            box = self.graphicview_tar.mapToScene(box_rect).boundingRect()
+            #self.settings[self.frame]['bbox'].append([int(i) for i in box.getRect()])
+            self.bboxes.append([int(i) for i in box.getRect()])
         self.update()
             
 
