@@ -107,7 +107,7 @@ class VideoPair:
         if self.mask != None and self.mode == None:
             ret_frame = 255*mask_frame
         elif self.mask == None and self.mode != None:
-            ret_frame = class_frame
+            ret_frame = mask_frame*class_frame
         elif self.mask == None and self.mode == None:
             ret_frame = np.zeros_like(tar_frame)
         else:

@@ -55,12 +55,15 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.frame        = 0
         self.num_frames   = 0
 
-        self.mask = None
-        self.classifier = None
-        self.threshold  = 127
-        self.opening    = 1
-        self.closing    = 1
-        self.erosion    = 1
+
+        self.mask_method = None
+        self.classifier  = None
+        self.threshold   = 127
+        self.opening     = 1
+        self.closing     = 1
+        self.erosion     = 1
+        self.K            = 2
+        self.fold         = 0
 
         self.anchor_frame = 0
         self.consistency  = False
@@ -69,8 +72,8 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.anchor_target     = None
 
         self.bboxes = []
-        self.contour_dc = None
-        self.contour_fg = None
+        self.contour_dc = []
+        self.contour_fg = []
 
 
         self.setupUi(self)
@@ -162,8 +165,6 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
         # Enable/disable widgets
         self.enableWidgets()
-        self.annotate()
-        self._print_text(self.frame)
 
 
         if self.status.loadedFiles:
@@ -174,16 +175,21 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
             ref_frame, tar_frame, net_frame = self.videopair.get_frame(self.frame)
             self.setImages(ref_frame, tar_frame, net_frame)
+            self.annotate()
+            self._print_text(self.frame)
+
 
     def setImages(self, image_ref, image_tar, net_frames):
 
         # Checking if the frame is already annotated
         if self.settings[self.frame]['annotated'] :
 
-            img_show_ref = image_ref
+            self.contour_fg = self.settings[self.frame]['contour_fg']
+            self.contour_dc = self.settings[self.frame]['contour_dc']
+            img_show_ref =  image_ref
             img_show_tar =  self.draw_contour(image_tar, 
-                              self.settings[self.frame]['contour_fg'], 
-                              self.settings[self.frame]['contour_dc'])
+                              self.contour_fg, 
+                              self.contour_dc)
         else:
             # Post-processing
             detection, cnt_fg, cnt_dc = self.apply_morphology(net_frames)
@@ -249,7 +255,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         frm = self.frame_slider.value()
         if frm < self.num_frames and frm >=0:
            self.frame = frm
-        self.update()    
+        self.change_frame()    
 
     def setFold(self):
         """Load frame"""
@@ -258,23 +264,169 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
     def nextFrame(self):
         """Load next frame"""
+
         if self.frame < self.num_frames:
+            self.write_setting('annotated', True)
             self.frame += 1
-            self.frame_slider.setValue(self.frame)
-            self.propag_settings()
-            self.update()
+            #if self.settings[self.frame+1]['annotated']:
+            #    self.reload_variables()
+
+            self.change_frame()
 
     def prevFrame(self):
         """Load previous frame"""
         if self.frame >0:
+            self.write_setting('annotated', True)
             self.frame -= 1
+            self.change_frame()
+
             self.frame_slider.setValue(self.frame)
-            self.update()
+
+    
+    def change_frame(self):
+
+        # If frame is annotated, the annotations is turned off and the current contours are loaded
+        # as well as the parameters
+        if self.settings[self.frame]['annotated']:
+            
+            # Turning annotation off
+            # self.activate_checkbox.setChecked(False)
+
+            # Re-set parameters
+            self.reload_variables()
+
+            # Load contours
+        else:
+            self.propag_settings()
+            self.write_setting('annotated', False)
+            
+        self.update()
+
+            
+    def reload_variables(self):
+
+        frame = self.settings[self.frame].copy()
+        self.mask_method = frame['mask']
+        self.classifier  = frame['algorithm']
+        self.threshold   = frame['threshold']
+        self.opening     = frame['opening']
+        self.closing     = frame['closing']
+        self.erosion     = frame['erosion']
+
+        self.anchor_frame = frame['anchor']
+        self.consistency  = frame['consistency']
+        self.transform    = frame['transform']
+
+        self.bboxes = frame['bbox']
+        self.contour_dc = frame['contour_dc']
+        self.contour_fg = frame['contour_fg']
+
+        self.fold = frame['fold']
+        self.K    = frame['K']
+
+
+        # reseting widgets
+        self.frame_slider.blockSignals(True)
+        self.frame_slider.setValue(self.frame)
+        self.frame_slider.blockSignals(False)
+
+        self.thresh_slider.blockSignals(True)
+        self.thresh_slider.setValue(self.threshold)
+        self.thresh_label.setText(str(self.threshold))
+        self.thresh_slider.blockSignals(False)
+
+        self.open_sbox.blockSignals(True)
+        self.open_sbox.setValue(self.opening)
+        self.open_sbox.blockSignals(False)
+
+        self.close_sbox.blockSignals(True)
+        self.close_sbox.setValue(self.closing)
+        self.close_sbox.blockSignals(False)
+
+        self.erode_sbox.blockSignals(True)
+        self.erode_sbox.setValue(self.erosion)
+        self.erode_sbox.blockSignals(False)
+
+        self.fold_combobox.blockSignals(True)
+        self.fold_combobox.setCurrentIndex(self.fold)
+        self.fold_combobox.blockSignals(False)
+
+        self.k_sbox.blockSignals(True)
+        self.k_sbox.setValue(self.K)
+        self.k_sbox.blockSignals(False)
+
+        # self.admult_mask_radio.blockSignals(True)
+        # self.admult20_mask_radio.blockSignals(True)
+        # self.admult40_mask_radio.blockSignals(True)
+        # self.none_mask_radio.blockSignals(True)
+        if self.mask_method == 'ADMULT':
+            self.admult_mask_radio.setChecked(True)
+            self.admult_mask_radio.click()
+        elif self.mask_method == 'ADMULT-20':
+            self.admult20_mask_radio.setChecked(True)
+            self.admult20_mask_radio.click()
+        elif self.mask_method == 'ADMULT-40':
+            self.admult40_mask_radio.setChecked(True)
+            self.admult40_mask_radio.click()
+        else:
+            self.none_mask_radio.setChecked(True)
+            self.none_mask_radio.click()
+
+        # self.admult_mask_radio.blockSignals(False)
+        # self.admult20_mask_radio.blockSignals(False)
+        # self.admult40_mask_radio.blockSignals(False)  
+        # self.none_mask_radio.blockSignals(False)
+
+        #self.tcf_net_radio.blockSignals(True)
+        #self.rf_net_radio.blockSignals(True)
+        #self.diss_radio.blockSignals(True)
+        #self.km_net_radio.blockSignals(True)
+        #self.none_net_radio.blockSignals(True)
+        if self.classifier == 'TCF-LMO':
+            self.tcf_net_radio.setChecked(True)
+            self.tcf_net_radio.click()
+        elif self.classifier == 'Resnet+RF':
+            self.rf_net_radio.setChecked(True)
+            self.rf_net_radio.click()
+        elif self.classifier == 'Resnet+Dissim':
+            self.diss_radio.setChecked(True)
+            self.diss_radio.click()
+        elif self.classifier == 'K-means':
+            self.km_net_radio.setChecked(True)
+            self.km_net_radio.click()
+        else:
+            self.none_net_radio.setChecked(False)
+            self.none_net_radio.click()
+        #self.tcf_net_radio.blockSignals(False)
+        #self.rf_net_radio.blockSignals(False)
+        #self.diss_radio.blockSignals(False)
+        #self.km_net_radio.blockSignals(False)
+        #self.none_net_radio.blockSignals(False)
+     
+        #self.pushbutton_next.setEnabled(True)
+        #self.pushbutton_prev.setEnabled(True)
+        #self.frame_label.setText('/ {}'.format(self.num_frames))
+        #self.noobject_pushbutton.setEnabled(True)
+    
+        #if self.tcf_net_radio.isChecked() or self.rf_net_radio.isChecked():
+        #    self.fold_combobox.setEnabled(True)
+        #else:
+        #    self.fold_combobox.setEnabled(False)
 
     def propag_settings(self):
         if self.frame >0:
-            self.settings[self.frame]  = self.settings[self.frame-1].copy()
-            
+            if self.settings[self.frame]['annotated'] == False:
+                previous_frame = self.settings[self.frame-1].copy()
+                self.settings[self.frame]['mask']      =  previous_frame['mask']
+                self.settings[self.frame]['algorithm'] = previous_frame['algorithm']
+                self.settings[self.frame]['opening'] = previous_frame['opening']
+                self.settings[self.frame]['closing'] = previous_frame['closing']
+                self.settings[self.frame]['erosion'] = previous_frame['erosion']
+                self.settings[self.frame]['threshold'] = previous_frame['threshold']
+                self.settings[self.frame]['anchor']   = previous_frame['anchor']
+                self.settings[self.frame]['fold']   = previous_frame['fold']
+                self.settings[self.frame]['K']   = previous_frame['K']
+         
     def resizeEvent(self, event):
         if self.status.loadedFiles:
             self.update()
@@ -287,13 +439,16 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.videopair.mode = radioButton.mode
             self.consistency_checkbox.setChecked(False)
             self.k_sbox.setEnabled(self.videopair.mode == 'K-means')
+            self.classifier = self.videopair.mode
             self.update()
+
 
     def change_mask(self):
         radioButton = self.sender()
         if radioButton.isChecked():
             self.videopair.mask = radioButton.mask
             self.consistency_checkbox.setChecked(False)
+            self.mask_method = self.videopair.mask
             self.update()
 
     def apply_morphology(self, img):
@@ -378,12 +533,14 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         frame_settings['has_object'] = None
         frame_settings['mask']       = None
         frame_settings['algorithm']  = None
+        frame_settings['fold']       = 0
+        frame_settings['K']          = 2
         frame_settings['opening']    = 0
         frame_settings['closing']    = 0
         frame_settings['erosion']    = 0
         frame_settings['threshold']  = 127
-        frame_settings['contour_fg'] = None
-        frame_settings['contour_dc'] = None
+        frame_settings['contour_fg'] = []
+        frame_settings['contour_dc'] = []
         frame_settings['anchor']      = 0
         frame_settings['consistency'] = None
         frame_settings['transform']   = None
@@ -394,8 +551,14 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
     def annotate(self):
         
+        if len(self.contour_dc)+len(self.contour_fg)>0  :
+            self.write_setting('has_object', True)
+        else:
+            self.write_setting('has_object', False)
         self.write_setting('mask', self.videopair.mask)
         self.write_setting('algorithm', self.videopair.mode)
+        self.write_setting('fold', self.fold)
+        self.write_setting('K', self.K)
         self.write_setting('opening', self.opening)
         self.write_setting('closing', self.closing)
         self.write_setting('erosion', self.erosion)
@@ -403,9 +566,9 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.write_setting('anchor', self.anchor_frame)
         self.write_setting('consistency', self.consistency)
         self.write_setting('transform', self.transform)
-        self.write_setting('contour_fg', self.contour_fg)
-        self.write_setting('contour_dc', self.contour_dc)
-        self.write_setting('bbox', self.bboxes)
+        self.write_setting('contour_fg', self.contour_fg.copy())
+        self.write_setting('contour_dc', self.contour_dc.copy())
+        self.write_setting('bbox', self.bboxes.copy())
 
 
     def write_setting(self, setting, value):
@@ -433,6 +596,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.opening   = self.open_sbox.value()
         self.erosion   = self.erode_sbox.value()
         self.K         = self.k_sbox.value()
+        self.fold      = self.fold_combobox.currentIndex()
         self.thresh_label.setText(str(self.threshold))
 
         self.consistency_checkbox.setChecked(False)
@@ -462,8 +626,8 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         print_str += '{0}],['.format(frm_set['threshold'])
         print_str += '{0},'.format(frm_set['anchor'])
         print_str += '{0}],'.format(frm_set['consistency'])
-        print_str += '[{0},'.format(self.contour_fg!=None)
-        print_str += '{0}]'.format(self.contour_dc!=None)
+        print_str += '[{0},'.format(len(frm_set['contour_fg']))
+        print_str += '{0}]'.format(len(frm_set['contour_dc']))
         print_str += '[{0}]'.format(len(frm_set['bbox']))
         print_str += '\n'
 
@@ -483,7 +647,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.erode_sbox.setEnabled(True)
             self.contour_checkbox.setEnabled(True)
             self.fill_checkbox.setEnabled(True)
-            self.write_setting('annotated', True)
+            #self.write_setting('annotated', True)
 
         else:
 
@@ -495,7 +659,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.erode_sbox.setEnabled(False)
             self.contour_checkbox.setEnabled(False)
             self.fill_checkbox.setEnabled(False)
-            self.write_setting('annotated', False)
+            #self.write_setting('annotated', False)
 
         self.update()
 
@@ -554,12 +718,11 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
     def set_rect(self):
         if -1 in self.graphicview_tar.box_rect.getRect():
             self.bboxes = []
-            #self.settings[self.frame]['bbox'] = self.bboxes
         else:
             box_rect = self.graphicview_tar.box_rect
             box = self.graphicview_tar.mapToScene(box_rect).boundingRect()
-            #self.settings[self.frame]['bbox'].append([int(i) for i in box.getRect()])
             self.bboxes.append([int(i) for i in box.getRect()])
+        self.videopair.rect = self.bboxes
         self.update()
             
 
