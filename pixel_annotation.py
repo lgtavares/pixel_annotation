@@ -723,6 +723,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             box = self.graphicview_tar.mapToScene(box_rect).boundingRect()
             self.bboxes.append([int(i) for i in box.getRect()])
         self.videopair.rect = self.bboxes
+        self.write_setting('bbox', self.bboxes)
         self.update()
             
 
