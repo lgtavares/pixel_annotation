@@ -156,11 +156,11 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.start_settings()
 
         # Updating
-        self.update()
+        self.update(static=True)
 
 
 
-    def update(self):
+    def update(self, static=False):
         """Load graphic view and set widgets"""
 
         # Enable/disable widgets
@@ -174,35 +174,54 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.videopair.rect = self.bboxes
 
             ref_frame, tar_frame, net_frame = self.videopair.get_frame(self.frame)
-            self.setImages(ref_frame, tar_frame, net_frame)
+            self.setImages(ref_frame, tar_frame, net_frame, static_change=static)
             self.annotate()
             self._print_text(self.frame)
 
 
-    def setImages(self, image_ref, image_tar, net_frames):
+    def setImages(self, image_ref, image_tar, net_frames, static_change=False):
 
         # Checking if the frame is already annotated
-        if self.settings[self.frame]['annotated'] :
+        if self.settings[self.frame]['annotated'] and static_change==False:
 
-            self.contour_fg = self.settings[self.frame]['contour_fg']
-            self.contour_dc = self.settings[self.frame]['contour_dc']
-            img_show_ref =  image_ref
-            img_show_tar =  self.draw_contour(image_tar, 
-                              self.contour_fg, 
-                              self.contour_dc)
+            if self.consistency and self.consistency_checkbox.isChecked():
+                self.contour_fg = self.settings[self.anchor_frame]['contour_fg']
+                self.contour_dc = self.settings[self.anchor_frame]['contour_dc']
+                transformation  = self.settings[self.frame]['transform']
+
+                detection   = np.zeros_like(net_frames)
+                cv2.fillPoly(detection, pts=self.contour_dc, color=127)
+                cv2.fillPoly(detection, pts=self.contour_fg, color=255) 
+                warped_det = cv2.warpPerspective(detection, transformation, (detection.shape[1], detection.shape[0]))
+                foreground = 255*(warped_det > 200).astype('uint8')
+                dontcare   = 255*(warped_det > 50).astype('uint8')
+                cnt_fg, cnt_dc = self.get_contours(foreground, dontcare)
+                self.contour_fg = cnt_fg
+                self.contour_dc = cnt_dc
+            else:
+                self.contour_fg = self.settings[self.frame]['contour_fg']
+                self.contour_dc = self.settings[self.frame]['contour_dc']
+
+            if self.mark_checkbox.isChecked():
+                img_show_ref = image_tar
+                img_show_tar = self.draw_contour(image_ref,self.contour_fg, self.contour_dc)
+            else:
+                img_show_ref = image_ref
+                img_show_tar = self.draw_contour(image_tar,self.contour_fg, self.contour_dc)
         else:
+
             # Post-processing
             detection, cnt_fg, cnt_dc = self.apply_morphology(net_frames)
             self.contour_fg = cnt_fg
             self.contour_dc = cnt_dc
 
-            img_show_ref = image_ref
-            img_show_tar = self.draw_contour(image_tar,cnt_fg, cnt_dc)
+            if self.mark_checkbox.isChecked():
+                img_show_ref = image_tar
+                img_show_tar = self.draw_contour(image_ref,cnt_fg, cnt_dc)
+            else:
+                img_show_ref = image_ref
+                img_show_tar = self.draw_contour(image_tar,cnt_fg, cnt_dc)
 
-            # Saving anchor frame
-            if self.frame == self.anchor_frame:
-                self.anchor_sil    = detection
-                self.anchor_target = image_tar
 
         self.frame_edit.setText('{}'.format(self.frame+1))
         if self.frame >=0 and self.frame<self.num_frames:
@@ -255,12 +274,14 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         frm = self.frame_slider.value()
         if frm < self.num_frames and frm >=0:
            self.frame = frm
+
+
         self.change_frame()    
 
     def setFold(self):
         """Load frame"""
         self.videopair.fold = self.fold_combobox.currentIndex()
-        self.update()    
+        self.update(static=True)    
 
     def nextFrame(self):
         """Load next frame"""
@@ -268,10 +289,10 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         if self.frame < self.num_frames:
             self.write_setting('annotated', True)
             self.frame += 1
-            #if self.settings[self.frame+1]['annotated']:
-            #    self.reload_variables()
+            self.propag_settings()
+            self.write_setting('annotated', False)
+            self.update(static=False)
 
-            self.change_frame()
 
     def prevFrame(self):
         """Load previous frame"""
@@ -300,7 +321,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.propag_settings()
             self.write_setting('annotated', False)
             
-        self.update()
+        self.update(static=False)
 
             
     def reload_variables(self):
@@ -355,6 +376,11 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.k_sbox.setValue(self.K)
         self.k_sbox.blockSignals(False)
 
+        self.consistency_checkbox.blockSignals(True)
+        self.consistency_checkbox.setChecked(True)
+        self.consistency_checkbox.click()
+        self.consistency_checkbox.blockSignals(False)
+
         # self.admult_mask_radio.blockSignals(True)
         # self.admult20_mask_radio.blockSignals(True)
         # self.admult40_mask_radio.blockSignals(True)
@@ -372,16 +398,6 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.none_mask_radio.setChecked(True)
             self.none_mask_radio.click()
 
-        # self.admult_mask_radio.blockSignals(False)
-        # self.admult20_mask_radio.blockSignals(False)
-        # self.admult40_mask_radio.blockSignals(False)  
-        # self.none_mask_radio.blockSignals(False)
-
-        #self.tcf_net_radio.blockSignals(True)
-        #self.rf_net_radio.blockSignals(True)
-        #self.diss_radio.blockSignals(True)
-        #self.km_net_radio.blockSignals(True)
-        #self.none_net_radio.blockSignals(True)
         if self.classifier == 'TCF-LMO':
             self.tcf_net_radio.setChecked(True)
             self.tcf_net_radio.click()
@@ -397,21 +413,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         else:
             self.none_net_radio.setChecked(False)
             self.none_net_radio.click()
-        #self.tcf_net_radio.blockSignals(False)
-        #self.rf_net_radio.blockSignals(False)
-        #self.diss_radio.blockSignals(False)
-        #self.km_net_radio.blockSignals(False)
-        #self.none_net_radio.blockSignals(False)
-     
-        #self.pushbutton_next.setEnabled(True)
-        #self.pushbutton_prev.setEnabled(True)
-        #self.frame_label.setText('/ {}'.format(self.num_frames))
-        #self.noobject_pushbutton.setEnabled(True)
-    
-        #if self.tcf_net_radio.isChecked() or self.rf_net_radio.isChecked():
-        #    self.fold_combobox.setEnabled(True)
-        #else:
-        #    self.fold_combobox.setEnabled(False)
+
 
     def propag_settings(self):
         if self.frame >0:
@@ -424,12 +426,13 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
                 self.settings[self.frame]['erosion'] = previous_frame['erosion']
                 self.settings[self.frame]['threshold'] = previous_frame['threshold']
                 self.settings[self.frame]['anchor']   = previous_frame['anchor']
+                self.settings[self.frame]['consistency']   = previous_frame['consistency']
                 self.settings[self.frame]['fold']   = previous_frame['fold']
                 self.settings[self.frame]['K']   = previous_frame['K']
          
     def resizeEvent(self, event):
         if self.status.loadedFiles:
-            self.update()
+            self.update(static=True)
         super(MainWindow, self).resizeEvent(event)
     
 
@@ -437,39 +440,41 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         radioButton = self.sender()
         if radioButton.isChecked():
             self.videopair.mode = radioButton.mode
-            self.consistency_checkbox.setChecked(False)
+            #self.consistency_checkbox.setChecked(False)
             self.k_sbox.setEnabled(self.videopair.mode == 'K-means')
             self.classifier = self.videopair.mode
-            self.update()
+            self.update(static=True)
 
 
     def change_mask(self):
         radioButton = self.sender()
         if radioButton.isChecked():
             self.videopair.mask = radioButton.mask
-            self.consistency_checkbox.setChecked(False)
+            #self.consistency_checkbox.setChecked(False)
             self.mask_method = self.videopair.mask
-            self.update()
+            self.update(static=True)
 
     def apply_morphology(self, img):
 
         if self.consistency_checkbox.isChecked():
             
-            # set detection
-            detection   = self.anchor_sil 
+            # Get anchor contours
+            anchor_fg, anchor_dc = self.settings[self.anchor_frame]['contour_fg'], self.settings[self.anchor_frame]['contour_dc']
+
+            detection   = np.zeros_like(img)
+            cv2.fillPoly(detection, pts=anchor_dc, color=127)
+            cv2.fillPoly(detection, pts=anchor_fg, color=255) 
 
             # warp anchor detection
-            warped_detection = self.warpFrame(detection)
+            warped_detection = self.warpFrame(detection)[:,:,0]
 
             # extracting contours
-            gray_det   = cv2.cvtColor(warped_detection, cv2.COLOR_RGB2GRAY) 
-            foreground = cv2.cvtColor(255*(gray_det > 200).astype('uint8'), cv2.COLOR_GRAY2RGB) 
-            dontcare   = cv2.cvtColor(255*(gray_det > 50).astype('uint8'), cv2.COLOR_GRAY2RGB) 
+            foreground = cv2.cvtColor(255*(warped_detection > 200).astype('uint8'), cv2.COLOR_GRAY2RGB) 
+            dontcare   = cv2.cvtColor(255*(warped_detection > 50).astype('uint8'), cv2.COLOR_GRAY2RGB) 
 
             cnt_fg, cnt_dc = self.get_contours(foreground, dontcare)
 
         else:
-            
 
             # structures
             struct_opening  = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (self.opening, self.opening))
@@ -580,6 +585,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             with open(self.tar_filename.replace('.avi','.ann'), 'rb') as input_file:
                 self.settings = pickle.load(input_file)
                 last_frame = list(pd.DataFrame(self.settings).T.annotated).index(False)-1
+                self.frame = last_frame
                 self.frame_slider.setValue(last_frame)
                 self.ann_text.insertPlainText('Settings loaded !!\n')
         else:
@@ -599,15 +605,15 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.fold      = self.fold_combobox.currentIndex()
         self.thresh_label.setText(str(self.threshold))
 
-        self.consistency_checkbox.setChecked(False)
-        self.update()
+        #self.consistency_checkbox.setChecked(False)
+        self.update(static=True)
     
     def _print_text(self, frame):
 
         self.ann_text.clear()
         if frame < 2:
             [self._print_line(k) for k in range(self.frame+3)]
-        elif frame > self.num_frames-2:
+        elif frame > self.num_frames-3:
             [self._print_line(k) for k in range(self.frame-2, self.num_frames)]
         else:
             [self._print_line(k) for k in range(self.frame-2, self.frame+3)]
@@ -647,6 +653,8 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.erode_sbox.setEnabled(True)
             self.contour_checkbox.setEnabled(True)
             self.fill_checkbox.setEnabled(True)
+            self.mark_checkbox.setEnabled(True)
+
             #self.write_setting('annotated', True)
 
         else:
@@ -659,9 +667,11 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.erode_sbox.setEnabled(False)
             self.contour_checkbox.setEnabled(False)
             self.fill_checkbox.setEnabled(False)
+            self.mark_checkbox.setEnabled(False)
+
             #self.write_setting('annotated', False)
 
-        self.update()
+        self.update(static=True)
 
     def activate_toggle(self):
         self.activate_checkbox.setChecked(not self.activate_checkbox.isChecked())
@@ -670,50 +680,57 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
         self.anchor_frame = self.frame
 
-        if self.activate_checkbox.isChecked():
+        if self.consistency_checkbox.isChecked():
             self.consistency = True
         else:
             self.consistency = False
-        self.update()
+            self.write_setting('anchor', self.settings[self.frame-1]['anchor'])
+            #self.write_setting('contour_fg', [])
+            #self.write_setting('contour_dc', [])
+
+
+        self.write_setting('consistency', self.consistency)
+        self.update(static=True)
 
     def warpFrame(self, detection):
 
-        # Initiate SIFT detector
-        sift = cv2.SIFT_create()
+        if self.anchor_frame != self.frame:
 
+            # Initiate SIFT detector
+            sift = cv2.SIFT_create()
 
-        # Get frames
-        _, current_frm, _  = self.videopair.get_frame(self.frame)
-        anchor_frm = self.anchor_target
+            # Get frames
+            _, current_frm, _  = self.videopair.get_frame(self.frame)
+            _, anchor_frm, _   = self.videopair.get_frame(self.anchor_frame)
 
-        kp1, des1 = sift.detectAndCompute(anchor_frm,None)
-        kp2, des2 = sift.detectAndCompute(current_frm,None)
+            kp1, des1 = sift.detectAndCompute(anchor_frm,None)
+            kp2, des2 = sift.detectAndCompute(current_frm,None)
 
-        index_params = dict(algorithm = 1, trees = 5)
-        search_params = dict(checks = 50)
-        flann = cv2.FlannBasedMatcher(index_params, search_params)
-        matches = flann.knnMatch(des1,des2,k=2)
+            index_params = dict(algorithm = 1, trees = 5)
+            search_params = dict(checks = 50)
+            flann = cv2.FlannBasedMatcher(index_params, search_params)
+            matches = flann.knnMatch(des1,des2,k=2)
 
-        good = []
-        for m,n in matches:
-            if m.distance < 0.7*n.distance:
-                good.append(m)
+            good = []
+            for m,n in matches:
+                if m.distance < 0.7*n.distance:
+                    good.append(m)
 
-        # Select good matched keypoints
-        src_pts = np.float32([ kp1[m.queryIdx].pt for m in good ]).reshape(-1,1,2)
-        dst_pts = np.float32([ kp2[m.trainIdx].pt for m in good ]).reshape(-1,1,2)
-        
-        # Compute homography
-        H, _ = cv2.findHomography(src_pts, dst_pts, method=cv2.RANSAC, ransacReprojThreshold=5.0)
-        warped_det = cv2.warpPerspective(detection, H, (detection.shape[1], detection.shape[0]))
+            # Select good matched keypoints
+            src_pts = np.float32([ kp1[m.queryIdx].pt for m in good ]).reshape(-1,1,2)
+            dst_pts = np.float32([ kp2[m.trainIdx].pt for m in good ]).reshape(-1,1,2)
+            
+            # Compute homography
+            H, _ = cv2.findHomography(src_pts, dst_pts, method=cv2.RANSAC, ransacReprojThreshold=5.0)
+            warped_det = cv2.warpPerspective(detection, H, (detection.shape[1], detection.shape[0]))
 
-        # Save Homography
-        self.transform = H
-        self.write_setting('transform', self.transform)
+            # Save Homography
+            self.transform = H
+            self.write_setting('transform', self.transform)
 
-        # apply threshold
-
-        return warped_det
+            return warped_det
+        else:
+            return detection
 
     def set_rect(self):
         if -1 in self.graphicview_tar.box_rect.getRect():
@@ -724,7 +741,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.bboxes.append([int(i) for i in box.getRect()])
         self.videopair.rect = self.bboxes
         self.write_setting('bbox', self.bboxes)
-        self.update()
+        self.update(static=True)
             
 
 if __name__ == "__main__":

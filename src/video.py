@@ -91,12 +91,13 @@ class VideoPair:
 
 
         # Bounding box
-        rect_img = np.ones_like(tar_frame)
         if len(self.rect)>0:
             rect_img = np.zeros_like(tar_frame)
 
             for rect_vec in self.rect:
                 rect_img[rect_vec[1]:rect_vec[1]+rect_vec[3],rect_vec[0]:rect_vec[0]+rect_vec[2]] = 1
+        else:
+            rect_img = np.ones_like(tar_frame)
 
         if 0 in mask_frame:
             mask_frame = mask_frame*rect_img

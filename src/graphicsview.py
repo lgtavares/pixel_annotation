@@ -2,13 +2,14 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 
 class GraphicsView(QtWidgets.QGraphicsView):
     rectChanged = QtCore.pyqtSignal(QtCore.QRect)
-
+    
     def __init__(self, *args, **kwargs):
         QtWidgets.QGraphicsView.__init__(self, *args, **kwargs)
         self.rubberBand = QtWidgets.QRubberBand(QtWidgets.QRubberBand.Rectangle, self)
         self.setMouseTracking(True)
         self.origin = QtCore.QPoint()
         self.changeRubberBand = False
+        self.box_rect = QtCore.QRect()
 
     def mousePressEvent(self, event):
         if event.button() == QtCore.Qt.RightButton:
