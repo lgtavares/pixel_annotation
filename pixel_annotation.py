@@ -12,6 +12,7 @@ from cv2 import COLOR_RGB2GRAY
 import numpy as np
 import pandas as pd
 import pickle
+import imutils
 
 # PyQt libraries
 from PyQt5 import QtCore, QtGui, QtWidgets
@@ -64,6 +65,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.erosion     = 1
         self.K            = 2
         self.fold         = 0
+        self.fps = 5     ####### TODO
 
         self.anchor_frame = 0
         self.consistency  = False
@@ -119,6 +121,10 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.diss_filename = os.path.join(self.diss_filename, 
                                          'dissimilarity_video{0:02d}.avi'.format(self.video))
 
+        self.ref_sei_filename   = os.path.join(dirname, 'reference_{0:02d}.sei'.format(self.video))
+        self.tar_sei_filename   = os.path.join(dirname, 'target_{0:02d}.sei'.format(self.video))
+
+
         self.error(os.path.exists(self.ref_filename), 
                     'Error opening file {}.'.format(self.ref_filename)+
                     'Make sure it is a valid file.')
@@ -143,7 +149,12 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.error(os.path.exists(self.diss_filename), 
                     'Error opening folder\n {}.'.format(self.diss_filename)+
                     '\nMake sure it is a valid folder.')
-
+        self.error(os.path.exists(self.ref_sei_filename), 
+                    'Error opening folder\n {}.'.format(self.ref_sei_filename)+
+                    '\nMake sure it is a valid folder.')
+        self.error(os.path.exists(self.tar_sei_filename), 
+                    'Error opening folder\n {}.'.format(self.tar_sei_filename)+
+                    '\nMake sure it is a valid folder.')
         self.videopair = VideoPair(self.ref_filename, self.tar_filename,
                                    self.rf_filename, self.tcf_filename,
                                    self.admult_filename, self.diss_filename)
@@ -202,6 +213,11 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
                 self.contour_fg = self.settings[self.frame]['contour_fg']
                 self.contour_dc = self.settings[self.frame]['contour_dc']
 
+            # Angle compensation
+            if self.angle_checkbox.isChecked():
+                image_ref = imutils.rotate_bound(image_ref, self.ref_theta_x[self.frame] )
+                image_tar = imutils.rotate_bound(image_tar, self.tar_theta_x[self.frame] )
+
             if self.mark_checkbox.isChecked():
                 img_show_ref = image_tar
                 img_show_tar = self.draw_contour(image_ref,self.contour_fg, self.contour_dc)
@@ -214,6 +230,10 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             detection, cnt_fg, cnt_dc = self.apply_morphology(net_frames)
             self.contour_fg = cnt_fg
             self.contour_dc = cnt_dc
+
+            if self.angle_checkbox.isChecked():
+                image_ref = imutils.rotate_bound(image_ref, self.ref_theta_x[self.frame] )
+                image_tar = imutils.rotate_bound(image_tar, self.tar_theta_x[self.frame] )
 
             if self.mark_checkbox.isChecked():
                 img_show_ref = image_tar
@@ -503,12 +523,24 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
     def get_contours(self, foreground, dontcare):
 
+        if self.angle_checkbox.isChecked():
+            if self.mark_checkbox.isChecked(): 
+                foreground = imutils.rotate_bound(foreground, self.ref_theta_x[self.frame] )
+                dontcare   = imutils.rotate_bound(dontcare,   self.ref_theta_x[self.frame] )
+            else:
+                foreground = imutils.rotate_bound(foreground, self.tar_theta_x[self.frame] )
+                dontcare   = imutils.rotate_bound(dontcare,   self.tar_theta_x[self.frame] )
+
         foreground = cv2.cvtColor(foreground, cv2.COLOR_RGB2GRAY)
         dontcare   = cv2.cvtColor(dontcare, cv2.COLOR_RGB2GRAY)
         contours_fg, _ = cv2.findContours(foreground.astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         contours_dc, _ = cv2.findContours(dontcare.astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-        return contours_fg, contours_dc
+        if self.angle_checkbox.isChecked():
+            foreground = imutils.rotate_bound(foreground, self.ref_theta_x[self.frame] )
+            image_dontcaretar = imutils.rotate_bound(dontcare, self.tar_theta_x[self.frame] )
+
+        return list(contours_fg), list(contours_dc)
     
     def draw_contour(self, img, contours_fg, contours_dc):
 
@@ -553,6 +585,8 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
         self.settings = {i:frame_settings.copy() for i in range(self.num_frames)}
         self.settings['video'] = self.video
+
+        self.calculate_angles()
 
     def annotate(self):
         
@@ -654,6 +688,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.contour_checkbox.setEnabled(True)
             self.fill_checkbox.setEnabled(True)
             self.mark_checkbox.setEnabled(True)
+            self.angle_checkbox.setEnabled(True)
 
             #self.write_setting('annotated', True)
 
@@ -668,6 +703,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.contour_checkbox.setEnabled(False)
             self.fill_checkbox.setEnabled(False)
             self.mark_checkbox.setEnabled(False)
+            self.angle_checkbox.setEnabled(False)
 
             #self.write_setting('annotated', False)
 
@@ -743,6 +779,34 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.write_setting('bbox', self.bboxes)
         self.update(static=True)
             
+    def calculate_angles(self):
+
+        target_df       =  pd.read_csv(self.tar_sei_filename, skiprows=16, sep=r"\s+")
+        target_df       = target_df.loc[target_df.index == 'SEI:']
+        target_df.index = range(target_df.shape[0])
+
+        reference_df       =  pd.read_csv(self.ref_sei_filename, skiprows=16, sep=r"\s+")
+        reference_df       = reference_df.loc[reference_df.index == 'SEI:']
+        reference_df.index = range(reference_df.shape[0])
+
+        # Getting omega columns
+        tar_omegax = target_df['OMEGA-X']
+        tar_omegaz = target_df['OMEGA-Z']
+        ref_omegax = reference_df['OMEGA-X']
+        ref_omegaz = reference_df['OMEGA-Z']
+
+        tar_bias_wx = np.median(tar_omegax)
+        tar_bias_wz = np.median(tar_omegaz)
+        ref_bias_wx = np.median(ref_omegax)
+        ref_bias_wz = np.median(ref_omegaz)
+
+        self.tar_theta_x = (np.cumsum(tar_omegax-tar_bias_wx)/self.fps)*180/np.pi
+        self.tar_theta_z = (np.cumsum(tar_omegaz-tar_bias_wz)/self.fps)*180/np.pi
+        self.ref_theta_x = (np.cumsum(ref_omegax-ref_bias_wx)/self.fps)*180/np.pi
+        self.ref_theta_z = (np.cumsum(ref_omegaz-ref_bias_wz)/self.fps)*180/np.pi
+
+
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
