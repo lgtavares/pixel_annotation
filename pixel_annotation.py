@@ -21,6 +21,7 @@ from PyQt5.QtWidgets import QFileDialog, QGraphicsScene, QGraphicsPixmapItem
 from PyQt5.QtGui     import QPixmap, QImage
 from PyQt5.QtCore    import Qt
 
+
 # Add internal libs
 dir_name = os.path.abspath(os.path.dirname(__file__))
 libs_path = os.path.join(dir_name, 'src')
@@ -31,6 +32,7 @@ from layout import Ui_MainWindow as MainWindow
 from utils import newAction, addActions, struct, ToolBar, LabelFileError, to_pixmap
 from utils import WindowMenu
 from video import VideoPair
+from settings import Settings
 
 __version__ = '0.1'
 __appname__ = 'VDAO2 silhouette annotator'
@@ -49,7 +51,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.ref_filename = None
         self.tar_filename = None
         self.videopair    = None
-        self.settings     = {}
+        self.frame_settings = Settings()
         self.consistency  = False
         self.video        = 0
         self.status       = struct(loadedFiles=False,)
@@ -65,7 +67,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.erosion     = 1
         self.K            = 2
         self.fold         = 0
-        self.fps = 5     ####### TODO
+        self.fps_vdao2   = [5, 5, 10, 10, 10, 10, 10, 10, 10, 10, 10, 5, 5]
 
         self.anchor_frame = 0
         self.consistency  = False
@@ -95,76 +97,22 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
     def openFile(self):
 
-        filters    = "Video files (*.avi *.mp4);; All files (*)"
-        filename   = QFileDialog.getOpenFileName(self, '%s - Choose Reference or target video' % __appname__, self.datapath, filters)
-        input_file = filename[0]
-        if 'ref' in input_file:
-            self.ref_filename = input_file
-            self.tar_filename = input_file.replace('ref', 'tar')
-        if 'tar' in input_file:
-            self.ref_filename = input_file.replace('tar', 'ref')
-            self.tar_filename = input_file
+        directory    = QFileDialog.getExistingDirectory(self, '%s - Choose database folder' % __appname__, self.datapath)
+        self.dirname = os.path.abspath(directory)
 
-        self.video = int(self.tar_filename.split('vid')[-1].split('.')[0])
-        dirname = os.path.dirname(self.ref_filename)
-        self.tcf_filename   = os.path.join(dirname, 'tcf_lmo')
-        self.rf_filename    = os.path.join(dirname, 'rf')
-        self.admult_filename = os.path.join(dirname, 'admult')
-        self.admult_filename = os.path.join(self.admult_filename, 
-                                           'dissimilarity_video{0:02d}.avi'.format(self.video))
-        admult_dilate = os.path.join(dirname, 'admult_dilate')
-        self.admult20_filename = os.path.join(admult_dilate, 
-                                              'vid{0:02d}_dilate20.avi'.format(self.video)) 
-        self.admult40_filename = os.path.join(admult_dilate, 
-                                              'vid{0:02d}_dilate40.avi'.format(self.video))           
-        self.diss_filename = os.path.join(dirname, 'dissimilarity')
-        self.diss_filename = os.path.join(self.diss_filename, 
-                                         'dissimilarity_video{0:02d}.avi'.format(self.video))
-
-        self.ref_sei_filename   = os.path.join(dirname, 'reference_{0:02d}.sei'.format(self.video))
-        self.tar_sei_filename   = os.path.join(dirname, 'target_{0:02d}.sei'.format(self.video))
-
-
-        self.error(os.path.exists(self.ref_filename), 
-                    'Error opening file {}.'.format(self.ref_filename)+
-                    'Make sure it is a valid file.')
-        self.error(os.path.exists(self.tar_filename), 
-                    'Error opening file\n {}.'.format(self.tar_filename)+
-                    '\nMake sure it is a valid file.')
-        self.error(os.path.exists(self.admult_filename), 
-                    'Error opening file\n {}.'.format(self.admult_filename)+
-                    '\nMake sure it is a valid file.')
-        self.error(os.path.exists(self.admult20_filename), 
-                    'Error opening file\n {}.'.format(self.admult_filename)+
-                    '\nMake sure it is a valid file.')
-        self.error(os.path.exists(self.admult40_filename), 
-                    'Error opening file\n {}.'.format(self.admult_filename)+
-                    '\nMake sure it is a valid file.')
-        self.error(os.path.exists(self.tcf_filename), 
-                    'Error opening folder\n {}.'.format(self.tcf_filename)+
-                    '\nMake sure it is a valid folder.')
-        self.error(os.path.exists(self.rf_filename), 
-                    'Error opening folder\n {}.'.format(self.rf_filename)+
-                    '\nMake sure it is a valid folder.')
-        self.error(os.path.exists(self.diss_filename), 
-                    'Error opening folder\n {}.'.format(self.diss_filename)+
-                    '\nMake sure it is a valid folder.')
-        self.error(os.path.exists(self.ref_sei_filename), 
-                    'Error opening folder\n {}.'.format(self.ref_sei_filename)+
-                    '\nMake sure it is a valid folder.')
-        self.error(os.path.exists(self.tar_sei_filename), 
-                    'Error opening folder\n {}.'.format(self.tar_sei_filename)+
-                    '\nMake sure it is a valid folder.')
-        self.videopair = VideoPair(self.ref_filename, self.tar_filename,
-                                   self.rf_filename, self.tcf_filename,
-                                   self.admult_filename, self.diss_filename)
+        # Create video object
+        self.videopair = VideoPair(self.dirname)
+        self.align     = self.videopair.align
+        self.video     = self.videopair.video
+        self.fps       = self.fps_vdao2[self.video-1]
         self.status.loadedFiles = True
 
         # Temporary
-        self.num_frames = self.videopair.tar_video.num_frames
+        self.num_frames = self.videopair.num_frames
+        self.frame_settings = Settings(self.num_frames)
 
-        # Create settings
-        self.start_settings()
+        # Load angle correction
+        self.calculate_angles()
 
         # Updating
         self.update(static=True)
@@ -181,7 +129,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         if self.status.loadedFiles:
 
             # setting bounding box
-            self.bboxes = self.settings[self.frame]['bbox']
+            self.bboxes = self.frame_settings.get_value('bbox')
             self.videopair.rect = self.bboxes
 
             ref_frame, tar_frame, net_frame = self.videopair.get_frame(self.frame)
@@ -193,12 +141,12 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
     def setImages(self, image_ref, image_tar, net_frames, static_change=False):
 
         # Checking if the frame is already annotated
-        if self.settings[self.frame]['annotated'] and static_change==False:
+        if self.frame_settings.get_value('annotated') and static_change==False:
 
             if self.consistency and self.consistency_checkbox.isChecked():
-                self.contour_fg = self.settings[self.anchor_frame]['contour_fg']
-                self.contour_dc = self.settings[self.anchor_frame]['contour_dc']
-                transformation  = self.settings[self.frame]['transform']
+                self.contour_fg = self.frame_settings.get_anchor_value('contour_fg')
+                self.contour_dc = self.frame_settings.get_anchor_value('contour_dc')
+                transformation  = self.frame_settings.get_value('transform')
 
                 detection   = np.zeros_like(net_frames)
                 cv2.fillPoly(detection, pts=self.contour_dc, color=127)
@@ -210,8 +158,8 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
                 self.contour_fg = cnt_fg
                 self.contour_dc = cnt_dc
             else:
-                self.contour_fg = self.settings[self.frame]['contour_fg']
-                self.contour_dc = self.settings[self.frame]['contour_dc']
+                self.contour_fg = self.frame_settings.get_value('contour_fg')
+                self.contour_dc = self.frame_settings.get_value('contour_dc')
 
             # Angle compensation
             if self.angle_checkbox.isChecked():
@@ -248,13 +196,16 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.scene_ref.clear()
             self.scene_tar.clear()
 
+        
             imgmap_ref  = QtGui.QPixmap(to_pixmap(img_show_ref))
             pixItem_ref = QtWidgets.QGraphicsPixmapItem(imgmap_ref) 
             self.scene_ref.addItem(pixItem_ref)     
+            self.scene_ref.setSceneRect(0, 0, imgmap_ref.width(), imgmap_ref.height())
 
             imgmap_tar  = QtGui.QPixmap(to_pixmap(img_show_tar))
             pixItem_tar = QtWidgets.QGraphicsPixmapItem(imgmap_tar) 
             self.scene_tar.addItem(pixItem_tar)     
+            self.scene_tar.setSceneRect(0, 0, imgmap_tar.width(), imgmap_tar.height())
 
             self.scene_ref.update()
             self.scene_tar.update()
@@ -263,7 +214,6 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
                                         QtCore.Qt.KeepAspectRatio)
             self.graphicview_tar.fitInView(self.scene_tar.sceneRect(),
                                         QtCore.Qt.KeepAspectRatio)
-
 
     def error(self, test, message):
         if not test:
@@ -279,7 +229,6 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.pushbutton_next.setEnabled(True)
             self.pushbutton_prev.setEnabled(True)
             self.frame_label.setText('/ {}'.format(self.num_frames))
-            self.noobject_pushbutton.setEnabled(True)
         
             if self.tcf_net_radio.isChecked() or self.rf_net_radio.isChecked():
                 self.fold_combobox.setEnabled(True)
@@ -294,6 +243,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         frm = self.frame_slider.value()
         if frm < self.num_frames and frm >=0:
            self.frame = frm
+           self.frame_settings.set_frame(self.frame)
 
 
         self.change_frame()    
@@ -301,23 +251,24 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
     def setFold(self):
         """Load frame"""
         self.videopair.fold = self.fold_combobox.currentIndex()
+        self.videopair.set_mode(self.videopair.mode)
         self.update(static=True)    
 
     def nextFrame(self):
         """Load next frame"""
 
         if self.frame < self.num_frames:
-            self.write_setting('annotated', True)
+            self.frame_settings.set_value('annotated', True)
             self.frame += 1
-            self.propag_settings()
-            self.write_setting('annotated', False)
+            self.frame_settings.propagate_previous()
+            #self.frame_settings.set_value('annotated', False)
             self.update(static=False)
 
 
     def prevFrame(self):
         """Load previous frame"""
         if self.frame >0:
-            self.write_setting('annotated', True)
+            self.frame_settings.set_value('annotated', True)
             self.frame -= 1
             self.change_frame()
 
@@ -328,7 +279,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
         # If frame is annotated, the annotations is turned off and the current contours are loaded
         # as well as the parameters
-        if self.settings[self.frame]['annotated']:
+        if self.frame_settings.get_value('annotated'):
             
             # Turning annotation off
             # self.activate_checkbox.setChecked(False)
@@ -338,33 +289,30 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
             # Load contours
         else:
-            self.propag_settings()
-            self.write_setting('annotated', False)
+            self.frame_settings.propagate_previous()
+            self.frame_settings.set_value('annotated', False)
             
         self.update(static=False)
 
             
     def reload_variables(self):
 
-        frame = self.settings[self.frame].copy()
-        self.mask_method = frame['mask']
-        self.classifier  = frame['algorithm']
-        self.threshold   = frame['threshold']
-        self.opening     = frame['opening']
-        self.closing     = frame['closing']
-        self.erosion     = frame['erosion']
+        frame = self.frame_settings.get_row()
 
+        self.mask_method  = frame['mask']
+        self.classifier   = frame['algorithm']
+        self.threshold    = frame['threshold']
+        self.opening      = frame['opening']
+        self.closing      = frame['closing']
+        self.erosion      = frame['erosion']
         self.anchor_frame = frame['anchor']
         self.consistency  = frame['consistency']
         self.transform    = frame['transform']
-
-        self.bboxes = frame['bbox']
-        self.contour_dc = frame['contour_dc']
-        self.contour_fg = frame['contour_fg']
-
-        self.fold = frame['fold']
-        self.K    = frame['K']
-
+        self.bboxes       = frame['bbox']
+        self.contour_dc   = frame['contour_dc']
+        self.contour_fg   = frame['contour_fg']
+        self.fold         = frame['fold']
+        self.K            = frame['K']
 
         # reseting widgets
         self.frame_slider.blockSignals(True)
@@ -401,10 +349,6 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.consistency_checkbox.click()
         self.consistency_checkbox.blockSignals(False)
 
-        # self.admult_mask_radio.blockSignals(True)
-        # self.admult20_mask_radio.blockSignals(True)
-        # self.admult40_mask_radio.blockSignals(True)
-        # self.none_mask_radio.blockSignals(True)
         if self.mask_method == 'ADMULT':
             self.admult_mask_radio.setChecked(True)
             self.admult_mask_radio.click()
@@ -433,22 +377,6 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         else:
             self.none_net_radio.setChecked(False)
             self.none_net_radio.click()
-
-
-    def propag_settings(self):
-        if self.frame >0:
-            if self.settings[self.frame]['annotated'] == False:
-                previous_frame = self.settings[self.frame-1].copy()
-                self.settings[self.frame]['mask']      =  previous_frame['mask']
-                self.settings[self.frame]['algorithm'] = previous_frame['algorithm']
-                self.settings[self.frame]['opening'] = previous_frame['opening']
-                self.settings[self.frame]['closing'] = previous_frame['closing']
-                self.settings[self.frame]['erosion'] = previous_frame['erosion']
-                self.settings[self.frame]['threshold'] = previous_frame['threshold']
-                self.settings[self.frame]['anchor']   = previous_frame['anchor']
-                self.settings[self.frame]['consistency']   = previous_frame['consistency']
-                self.settings[self.frame]['fold']   = previous_frame['fold']
-                self.settings[self.frame]['K']   = previous_frame['K']
          
     def resizeEvent(self, event):
         if self.status.loadedFiles:
@@ -459,8 +387,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
     def change_net(self):
         radioButton = self.sender()
         if radioButton.isChecked():
-            self.videopair.mode = radioButton.mode
-            #self.consistency_checkbox.setChecked(False)
+            self.videopair.set_mode(radioButton.mode)
             self.k_sbox.setEnabled(self.videopair.mode == 'K-means')
             self.classifier = self.videopair.mode
             self.update(static=True)
@@ -470,7 +397,6 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         radioButton = self.sender()
         if radioButton.isChecked():
             self.videopair.mask = radioButton.mask
-            #self.consistency_checkbox.setChecked(False)
             self.mask_method = self.videopair.mask
             self.update(static=True)
 
@@ -479,7 +405,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         if self.consistency_checkbox.isChecked():
             
             # Get anchor contours
-            anchor_fg, anchor_dc = self.settings[self.anchor_frame]['contour_fg'], self.settings[self.anchor_frame]['contour_dc']
+            anchor_fg, anchor_dc = self.frame_settings.get_anchor_value('contour_fg'), self.frame_settings.get_anchor_value('contour_dc')
 
             detection   = np.zeros_like(img)
             cv2.fillPoly(detection, pts=anchor_dc, color=127)
@@ -525,8 +451,8 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
         if self.angle_checkbox.isChecked():
             if self.mark_checkbox.isChecked(): 
-                foreground = imutils.rotate_bound(foreground, self.ref_theta_x[self.frame] )
-                dontcare   = imutils.rotate_bound(dontcare,   self.ref_theta_x[self.frame] )
+                foreground = imutils.rotate_bound(foreground, self.ref_theta_x[self.align[self.frame]] )
+                dontcare   = imutils.rotate_bound(dontcare,   self.ref_theta_x[self.align[self.frame]] )
             else:
                 foreground = imutils.rotate_bound(foreground, self.tar_theta_x[self.frame] )
                 dontcare   = imutils.rotate_bound(dontcare,   self.tar_theta_x[self.frame] )
@@ -537,8 +463,8 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         contours_dc, _ = cv2.findContours(dontcare.astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
         if self.angle_checkbox.isChecked():
-            foreground = imutils.rotate_bound(foreground, self.ref_theta_x[self.frame] )
-            image_dontcaretar = imutils.rotate_bound(dontcare, self.tar_theta_x[self.frame] )
+            foreground = imutils.rotate_bound(foreground, self.tar_theta_x[self.frame] )
+            dontcare   = imutils.rotate_bound(dontcare, self.tar_theta_x[self.frame] )
 
         return list(contours_fg), list(contours_dc)
     
@@ -558,77 +484,42 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         result_img = cv2.addWeighted(img, alpha, result_img, 1-alpha, 0, result_img)
         return result_img
     
-    def noobject(self):
-        # mark the current frame as not having an object
-        self.write_setting('has_object', False)
-        # Go to the next frame
-        self.nextFrame()
-
-    def start_settings(self):
-        frame_settings = {}
-        frame_settings['annotated']  = False
-        frame_settings['has_object'] = None
-        frame_settings['mask']       = None
-        frame_settings['algorithm']  = None
-        frame_settings['fold']       = 0
-        frame_settings['K']          = 2
-        frame_settings['opening']    = 0
-        frame_settings['closing']    = 0
-        frame_settings['erosion']    = 0
-        frame_settings['threshold']  = 127
-        frame_settings['contour_fg'] = []
-        frame_settings['contour_dc'] = []
-        frame_settings['anchor']      = 0
-        frame_settings['consistency'] = None
-        frame_settings['transform']   = None
-        frame_settings['bbox']        = []
-
-        self.settings = {i:frame_settings.copy() for i in range(self.num_frames)}
-        self.settings['video'] = self.video
-
-        self.calculate_angles()
+        
 
     def annotate(self):
         
         if len(self.contour_dc)+len(self.contour_fg)>0  :
-            self.write_setting('has_object', True)
+            self.frame_settings.set_value('has_object', True)
         else:
-            self.write_setting('has_object', False)
-        self.write_setting('mask', self.videopair.mask)
-        self.write_setting('algorithm', self.videopair.mode)
-        self.write_setting('fold', self.fold)
-        self.write_setting('K', self.K)
-        self.write_setting('opening', self.opening)
-        self.write_setting('closing', self.closing)
-        self.write_setting('erosion', self.erosion)
-        self.write_setting('threshold', self.threshold)
-        self.write_setting('anchor', self.anchor_frame)
-        self.write_setting('consistency', self.consistency)
-        self.write_setting('transform', self.transform)
-        self.write_setting('contour_fg', self.contour_fg.copy())
-        self.write_setting('contour_dc', self.contour_dc.copy())
-        self.write_setting('bbox', self.bboxes.copy())
+            self.frame_settings.set_value('has_object', False)
+        self.frame_settings.set_value('mask', self.videopair.mask)
+        self.frame_settings.set_value('algorithm', self.videopair.mode)
+        self.frame_settings.set_value('fold', self.fold)
+        self.frame_settings.set_value('K', self.K)
+        self.frame_settings.set_value('opening', self.opening)
+        self.frame_settings.set_value('closing', self.closing)
+        self.frame_settings.set_value('erosion', self.erosion)
+        self.frame_settings.set_value('threshold', self.threshold)
+        self.frame_settings.set_value('anchor', self.anchor_frame)
+        self.frame_settings.set_value('consistency', self.consistency)
+        self.frame_settings.set_value('transform', self.transform)
+        self.frame_settings.set_value('contour_fg', self.contour_fg.copy())
+        self.frame_settings.set_value('contour_dc', self.contour_dc.copy())
+        self.frame_settings.set_value('bbox', self.bboxes.copy())
 
-
-    def write_setting(self, setting, value):
-        self.settings[self.frame][setting] = value
 
     def load_settings(self):
 
+        self.frame_settings.load(self.tar_filename.replace('.avi','.ann'))
+
         if os.path.exists(self.tar_filename.replace('.avi','.ann')):
-            with open(self.tar_filename.replace('.avi','.ann'), 'rb') as input_file:
-                self.settings = pickle.load(input_file)
-                last_frame = list(pd.DataFrame(self.settings).T.annotated).index(False)-1
-                self.frame = last_frame
-                self.frame_slider.setValue(last_frame)
-                self.ann_text.insertPlainText('Settings loaded !!\n')
-        else:
-            self.save_settings()
+            self.ann_text.insertPlainText('Settings loaded !!\n')
+            self.frame = self.frame_settings.frame
+            self.frame_slider.setValue(self.frame)
+
 
     def save_settings(self):
-        with open(self.tar_filename.replace('.avi','.ann'), 'wb') as output_file:
-            pickle.dump(self.settings, output_file)
-            self.ann_text.insertPlainText('Settings saved !!\n')
+        self.frame_settings.save(self.tar_filename.replace('.avi','.ann'))
 
     def set_morphology(self):
         self.threshold = self.thresh_slider.value()
@@ -654,23 +545,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
     def _print_line(self, f):
 
-        frm_set = self.settings[f]
-        print_str  = 'Frame {0:>4d}:'.format(f+1)
-        print_str += '{0},'.format(frm_set['has_object'])
-        print_str += '{0},'.format(frm_set['annotated'])
-        print_str += '{0},'.format(frm_set['mask'])
-        print_str += '{0},['.format(frm_set['algorithm'])
-        print_str += '{0},'.format(frm_set['opening'])
-        print_str += '{0},'.format(frm_set['closing'])
-        print_str += '{0},'.format(frm_set['erosion'])
-        print_str += '{0}],['.format(frm_set['threshold'])
-        print_str += '{0},'.format(frm_set['anchor'])
-        print_str += '{0}],'.format(frm_set['consistency'])
-        print_str += '[{0},'.format(len(frm_set['contour_fg']))
-        print_str += '{0}]'.format(len(frm_set['contour_dc']))
-        print_str += '[{0}]'.format(len(frm_set['bbox']))
-        print_str += '\n'
-
+        print_str = self.frame_settings.get_row_str(f)
         self.ann_text.insertPlainText(print_str)
 
 
@@ -690,8 +565,6 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.mark_checkbox.setEnabled(True)
             self.angle_checkbox.setEnabled(True)
 
-            #self.write_setting('annotated', True)
-
         else:
 
             self.class_groupbox.setEnabled(False)
@@ -704,8 +577,6 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.fill_checkbox.setEnabled(False)
             self.mark_checkbox.setEnabled(False)
             self.angle_checkbox.setEnabled(False)
-
-            #self.write_setting('annotated', False)
 
         self.update(static=True)
 
@@ -720,12 +591,9 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.consistency = True
         else:
             self.consistency = False
-            self.write_setting('anchor', self.settings[self.frame-1]['anchor'])
-            #self.write_setting('contour_fg', [])
-            #self.write_setting('contour_dc', [])
+            self.frame_settings.set_value('anchor', self.frame_settings.settings_df.loc[self.frame-1,'anchor'])
 
-
-        self.write_setting('consistency', self.consistency)
+        self.frame_settings.set_value('consistency', self.consistency)
         self.update(static=True)
 
     def warpFrame(self, detection):
@@ -762,7 +630,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
             # Save Homography
             self.transform = H
-            self.write_setting('transform', self.transform)
+            self.frame_settings.set_value('transform', self.transform)
 
             return warped_det
         else:
@@ -776,16 +644,16 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             box = self.graphicview_tar.mapToScene(box_rect).boundingRect()
             self.bboxes.append([int(i) for i in box.getRect()])
         self.videopair.rect = self.bboxes
-        self.write_setting('bbox', self.bboxes)
+        self.frame_settings.set_value('bbox', self.bboxes)
         self.update(static=True)
             
     def calculate_angles(self):
 
-        target_df       =  pd.read_csv(self.tar_sei_filename, skiprows=16, sep=r"\s+")
+        target_df       =  pd.read_csv(self.videopair.target_sei, skiprows=16, sep=r"\s+")
         target_df       = target_df.loc[target_df.index == 'SEI:']
         target_df.index = range(target_df.shape[0])
 
-        reference_df       =  pd.read_csv(self.ref_sei_filename, skiprows=16, sep=r"\s+")
+        reference_df       =  pd.read_csv(self.videopair.reference_sei, skiprows=16, sep=r"\s+")
         reference_df       = reference_df.loc[reference_df.index == 'SEI:']
         reference_df.index = range(reference_df.shape[0])
 
