@@ -5,19 +5,24 @@ import numpy as np
 
 class Settings():
 
-    def __init__(self, num_frames=0):
+    def __init__(self, num_frames=0, align=[]):
 
-        self.names = ['annotated', 'has_object', 'mask', 'algorithm',
+        self.names = ['target_frame', 'reference_frame', 'annotated', 'has_object', 'mask', 'algorithm',
                       'fold', 'K', 'opening', 'closing', 'erosion', 'threshold',
                       'contour_fg', 'contour_dc', 'anchor', 'consistency', 'transform', 'bbox']
 
         self.num_frames  = num_frames
-        self.settings_df = pd.DataFrame(index=np.arange(self.num_frames),columns=self.names)
+        self.align       = align
+        self.df = pd.DataFrame(index=np.arange(self.num_frames),columns=self.names)
         
         # populate the frames
-        self.__zero_condition = [False, None, None, None, 0, 2, 0, 0, 0, 127, [], [], 0, None, None, []]
+        self.__zero_condition = [0, 0, False, None, None, None, 0, 2, 0, 0, 0, 127, [], [], 0, None, None, []]
+
         for k in range(self.num_frames):
-            self.settings_df.loc[k] = self.__zero_condition 
+            self.df.iloc[k] =  self.__zero_condition 
+        if len(self.align) > 0:
+            self.df['target_frame']    = np.arange(self.num_frames)
+            self.df['reference_frame'] = self.align
 
         # Actual position
         self.frame = 0
@@ -26,47 +31,50 @@ class Settings():
         self.frame = frame
 
     def set_value(self, setting, value):
-        self.settings_df.loc[self.frame, setting] = value
+
+        self.df.at[self.frame, setting] = value
 
     def set_row(self, row):
         if len(row) == len(self.names):
-            self.settings_df.iloc[self.frame,:] = np.array(row)
+            self.df.loc[self.frame,:] = np.array(row)
 
     def get_value(self, setting):
-        return self.settings_df.loc[self.frame, setting]
+        return self.df.loc[self.df['target_frame']==self.frame, setting].values[0]
 
-    def get_row(self):
-        return self.settings_df.loc[self.frame]
+    def get_row(self,frame):
+        return self.df.loc[self.df['target_frame']==frame, :]
 
     def get_anchor_value(self, setting):
-        anchor_frame = self.settings_df.loc[self.frame]['anchor']
-        return self.settings_df.loc[anchor_frame, setting]
+        anchor_frame = self.df.loc[self.df['target_frame']==self.frame, 'anchor'].values[0]
+        return self.df.loc[self.df['target_frame']==anchor_frame, setting].values[0]
 
     def get_anchor_row(self):
-        anchor_frame = self.settings_df.loc[self.frame]['anchor']
-        return self.settings_df.loc[anchor_frame]
+        anchor_frame = self.df.loc[self.df['target_frame']==self.frame, 'anchor'].values[0]
+        return self.df.loc[self.df['target_frame']==anchor_frame, :]
 
     def propagate_previous(self):
-        self.set_frame(self.frame+1)
-        if self.settings_df.loc[self.frame-1,'annotated']:
-            self.settings_df.loc[self.frame,:] = self.settings_df.loc[self.frame-1,:].copy()
+        propag_columns = ['annotated','mask', 'algorithm', 'opening', 'closing', 'erosion', 'threshold', 'anchor', 'consistency']
+        #self.set_frame(self.frame+1)
+        if self.frame > 0:
+            if self.df.loc[self.df['target_frame']==self.frame-1,'annotated'].values[0] &  ~self.df.loc[self.df['target_frame']==self.frame,'annotated'].values[0] :
+                self.df.loc[self.df['target_frame']==self.frame,propag_columns] = self.df.loc[self.df['target_frame']==self.frame-1,propag_columns].copy().values
 
     def get_row_str(self, frame):
-        row = self.settings_df.loc[frame]
-        print_str  = 'Frame {0:>4d}:'.format(frame+1)
-        print_str += '{0},'.format(row['has_object'])
-        print_str += '{0},'.format(row['annotated'])
-        print_str += '{0},'.format(row['mask'])
-        print_str += '{0},['.format(row['algorithm'])
-        print_str += '{0},'.format(row['opening'])
-        print_str += '{0},'.format(row['closing'])
-        print_str += '{0},'.format(row['erosion'])
-        print_str += '{0}],['.format(row['threshold'])
-        print_str += '{0},'.format(row['anchor'])
-        print_str += '{0}],'.format(row['consistency'])
-        print_str += '[{0},'.format(len(row['contour_fg']))
-        print_str += '{0}]'.format(len(row['contour_dc']))
-        print_str += '[{0}]'.format(len(row['bbox']))
+        row = self.get_row(frame)
+
+        print_str  = 'Frame [{0:>4d}/{1:>4d}]:'.format(frame+1,row['reference_frame'].values[0]+1)
+        print_str += '{0},'.format(row['annotated'].values[0])
+        print_str += '{0},'.format(row['mask'].values[0])
+        print_str += '{0},['.format(row['algorithm'].values[0])
+        print_str += '{0},'.format(row['opening'].values[0])
+        print_str += '{0},'.format(row['closing'].values[0])
+        print_str += '{0},'.format(row['erosion'].values[0])
+        print_str += '{0}],['.format(row['threshold'].values[0])
+        print_str += '{0},'.format(row['anchor'].values[0]+1)
+        print_str += '{0}],'.format(row['consistency'].values[0])
+        print_str += '[{0},'.format(len(row['contour_fg'].values[0]))
+        print_str += '{0}]'.format(len(row['contour_dc'].values[0]))
+        print_str += '[{0}]'.format(len(row['bbox'].values[0]))
         print_str += '\n'
 
         return print_str
@@ -75,21 +83,23 @@ class Settings():
         return d.T.to_dict()
 
     def to_df(self,d):
-        self.settings_df = pd.DataFrame.from_dict(d).T
+        return pd.DataFrame.from_dict(d).T
 
     def load(self,filename):
-
+        load_columns = ['annotated', 'has_object', 'mask', 'algorithm',
+                      'fold', 'K', 'opening', 'closing', 'erosion', 'threshold',
+                      'contour_fg', 'contour_dc', 'anchor', 'consistency', 'transform', 'bbox']
         if os.path.exists(filename):
-            with open(filename, 'rb') as input_file:
-                self.settings_df = self.to_df(pickle.load(input_file))
-                last_frame = list(self.settings_df.annotated).index(False)-1
-                self.set_frame(last_frame)
+            input_df =  pickle.load(open(filename, 'rb'))  
+            self.df[load_columns] = self.to_df(input_df)
+            last_frame = list(self.df.annotated).index(False)-1
+            self.set_frame(last_frame)
         else:
             self.save(filename)
 
     def save(self, filename):
         with open(filename, 'wb') as output_file:
-            pickle.dump(self.to_dict(self.settings_df), output_file)
+            pickle.dump(self.to_dict(self.df), output_file)
 
     def save_settings(self):
         with open(self.tar_filename.replace('.avi','.ann'), 'wb') as output_file:

@@ -184,8 +184,7 @@ class VideoPair:
 
         # ref_frame   = self.ref_video.get_frame(idx)
         # tar_frame   = self.tar_video.get_frame(idx)
-        # mask_frame  = np.ones_like(ref_frame)
-        # class_frame = np.zeros_like(ref_frame)
+
 
         # # Masks 
         # if self.mask == 'ADMULT':
@@ -235,20 +234,24 @@ class VideoPair:
 
 
         # # Bounding box
-        # if len(self.rect)>0:
-        #     rect_img = np.zeros_like(tar_frame)
+        if len(self.rect)>0:
+            rect_img = np.zeros_like(tar_frame)
 
-        #     for rect_vec in self.rect:
-        #         rect_img[rect_vec[1]:rect_vec[1]+rect_vec[3],rect_vec[0]:rect_vec[0]+rect_vec[2]] = 1
-        # else:
-        #     rect_img = np.ones_like(tar_frame)
+            for rect_vec in self.rect:
+                rect_img[rect_vec[1]:rect_vec[1]+rect_vec[3],rect_vec[0]:rect_vec[0]+rect_vec[2]] = 1
+        else:
+            rect_img = np.ones_like(tar_frame)
 
         # if 0 in mask_frame:
         #     mask_frame = mask_frame*rect_img
         # else:
         #     mask_frame = rect_img
 
-        # # Mask multiplication
+        # Mask multiplication
+        ret_frame = rect_img*ret_frame
+
+
+
         # if self.mask != None and self.mode == None:
         #     ret_frame = 255*mask_frame
         # elif self.mask == None and self.mode != None:

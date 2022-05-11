@@ -104,13 +104,14 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.videopair = VideoPair(self.dirname)
         self.align     = self.videopair.align
         self.video     = self.videopair.video
+
         self.fps       = self.fps_vdao2[self.video-1]
         self.status.loadedFiles = True
 
         # Temporary
         self.num_frames = self.videopair.num_frames
-        self.frame_settings = Settings(self.num_frames)
-
+        self.frame_settings = Settings(self.num_frames,self.align)
+        self.annotate_file  = os.path.join(self.dirname,'tar_vid{0:02d}.ann'.format(self.video))
         # Load angle correction
         self.calculate_angles()
 
@@ -140,6 +141,20 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
     def setImages(self, image_ref, image_tar, net_frames, static_change=False):
 
+        # # Check if the consistency is enabled
+        # if self.anchor != self.frame and self.consistency_checkbox.isChecked():
+        #     # consistency enabled
+
+        #     # loading anchor annotation
+        #     self.contour_fg = self.frame_settings.get_anchor_value('contour_fg')
+        #     self.contour_dc = self.frame_settings.get_anchor_value('contour_dc')
+        #     transformation  = self.frame_settings.get_value('transform')
+            
+
+        # else:
+        #     # consistency not enabled
+        #     pass
+
         # Checking if the frame is already annotated
         if self.frame_settings.get_value('annotated') and static_change==False:
 
@@ -161,17 +176,18 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
                 self.contour_fg = self.frame_settings.get_value('contour_fg')
                 self.contour_dc = self.frame_settings.get_value('contour_dc')
 
-            # Angle compensation
-            if self.angle_checkbox.isChecked():
-                image_ref = imutils.rotate_bound(image_ref, self.ref_theta_x[self.frame] )
-                image_tar = imutils.rotate_bound(image_tar, self.tar_theta_x[self.frame] )
+        elif self.frame_settings.get_value('annotated') and static_change==True:
+                self.contour_fg = self.frame_settings.get_anchor_value('contour_fg')
+                self.contour_dc = self.frame_settings.get_anchor_value('contour_dc')
 
-            if self.mark_checkbox.isChecked():
-                img_show_ref = image_tar
-                img_show_tar = self.draw_contour(image_ref,self.contour_fg, self.contour_dc)
-            else:
-                img_show_ref = image_ref
-                img_show_tar = self.draw_contour(image_tar,self.contour_fg, self.contour_dc)
+                detection   = np.zeros_like(net_frames)
+                cv2.fillPoly(detection, pts=self.contour_dc, color=127)
+                cv2.fillPoly(detection, pts=self.contour_fg, color=255)    
+                foreground = 255*(warped_det > 200).astype('uint8')
+                dontcare   = 255*(warped_det > 50).astype('uint8')
+                cnt_fg, cnt_dc = self.get_contours(foreground, dontcare)
+                self.contour_fg = cnt_fg
+                self.contour_dc = cnt_dc                         
         else:
 
             # Post-processing
@@ -179,19 +195,21 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.contour_fg = cnt_fg
             self.contour_dc = cnt_dc
 
-            if self.angle_checkbox.isChecked():
-                image_ref = imutils.rotate_bound(image_ref, self.ref_theta_x[self.frame] )
-                image_tar = imutils.rotate_bound(image_tar, self.tar_theta_x[self.frame] )
 
-            if self.mark_checkbox.isChecked():
-                img_show_ref = image_tar
-                img_show_tar = self.draw_contour(image_ref,cnt_fg, cnt_dc)
-            else:
-                img_show_ref = image_ref
-                img_show_tar = self.draw_contour(image_tar,cnt_fg, cnt_dc)
+        #  Angle compensation
+        if self.angle_checkbox.isChecked():
+            image_ref = imutils.rotate_bound(image_ref, self.ref_theta_x[self.frame] )
+            image_tar = imutils.rotate_bound(image_tar, self.tar_theta_x[self.frame] )
+
+        if self.mark_checkbox.isChecked():
+            img_show_ref = image_tar
+            img_show_tar = self.draw_contour(image_ref,self.contour_fg, self.contour_dc)
+        else:
+            img_show_ref = image_ref
+            img_show_tar = self.draw_contour(image_tar,self.contour_fg, self.contour_dc)
 
 
-        self.frame_edit.setText('{}'.format(self.frame+1))
+        #self.frame_edit.setText('{}'.format(self.frame+1))
         if self.frame >=0 and self.frame<self.num_frames:
             self.scene_ref.clear()
             self.scene_tar.clear()
@@ -270,6 +288,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         if self.frame >0:
             self.frame_settings.set_value('annotated', True)
             self.frame -= 1
+            self.frame_settings.set_frame(self.frame)
             self.change_frame()
 
             self.frame_slider.setValue(self.frame)
@@ -292,27 +311,28 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.frame_settings.propagate_previous()
             self.frame_settings.set_value('annotated', False)
             
+        
         self.update(static=False)
 
             
     def reload_variables(self):
 
-        frame = self.frame_settings.get_row()
+        frame = self.frame_settings.get_row(self.frame)
 
-        self.mask_method  = frame['mask']
-        self.classifier   = frame['algorithm']
-        self.threshold    = frame['threshold']
-        self.opening      = frame['opening']
-        self.closing      = frame['closing']
-        self.erosion      = frame['erosion']
-        self.anchor_frame = frame['anchor']
-        self.consistency  = frame['consistency']
-        self.transform    = frame['transform']
-        self.bboxes       = frame['bbox']
-        self.contour_dc   = frame['contour_dc']
-        self.contour_fg   = frame['contour_fg']
-        self.fold         = frame['fold']
-        self.K            = frame['K']
+        self.mask_method  = frame['mask'].values[0]
+        self.classifier   = frame['algorithm'].values[0]
+        self.threshold    = frame['threshold'].values[0]
+        self.opening      = frame['opening'].values[0]
+        self.closing      = frame['closing'].values[0]
+        self.erosion      = frame['erosion'].values[0]
+        self.anchor_frame = frame['anchor'].values[0]
+        self.consistency  = frame['consistency'].values[0]
+        self.transform    = frame['transform'].values[0]
+        self.bboxes       = frame['bbox'].values[0]
+        self.contour_dc   = frame['contour_dc'].values[0]
+        self.contour_fg   = frame['contour_fg'].values[0]
+        self.fold         = frame['fold'].values[0]
+        self.K            = frame['K'].values[0]
 
         # reseting widgets
         self.frame_slider.blockSignals(True)
@@ -488,38 +508,39 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
     def annotate(self):
         
-        if len(self.contour_dc)+len(self.contour_fg)>0  :
-            self.frame_settings.set_value('has_object', True)
-        else:
-            self.frame_settings.set_value('has_object', False)
-        self.frame_settings.set_value('mask', self.videopair.mask)
-        self.frame_settings.set_value('algorithm', self.videopair.mode)
-        self.frame_settings.set_value('fold', self.fold)
-        self.frame_settings.set_value('K', self.K)
-        self.frame_settings.set_value('opening', self.opening)
-        self.frame_settings.set_value('closing', self.closing)
-        self.frame_settings.set_value('erosion', self.erosion)
-        self.frame_settings.set_value('threshold', self.threshold)
-        self.frame_settings.set_value('anchor', self.anchor_frame)
-        self.frame_settings.set_value('consistency', self.consistency)
-        self.frame_settings.set_value('transform', self.transform)
-        self.frame_settings.set_value('contour_fg', self.contour_fg.copy())
-        self.frame_settings.set_value('contour_dc', self.contour_dc.copy())
-        self.frame_settings.set_value('bbox', self.bboxes.copy())
+        if self.activate_checkbox.isChecked():
+            if len(self.contour_dc)+len(self.contour_fg)>0  :
+                self.frame_settings.set_value('has_object', True)
+            else:
+                self.frame_settings.set_value('has_object', False)
+            self.frame_settings.set_value('mask', self.videopair.mask)
+            self.frame_settings.set_value('algorithm', self.videopair.mode)
+            self.frame_settings.set_value('fold', self.fold)
+            self.frame_settings.set_value('K', self.K)
+            self.frame_settings.set_value('opening', self.opening)
+            self.frame_settings.set_value('closing', self.closing)
+            self.frame_settings.set_value('erosion', self.erosion)
+            self.frame_settings.set_value('threshold', self.threshold)
+            self.frame_settings.set_value('anchor', self.anchor_frame)
+            self.frame_settings.set_value('consistency', self.consistency)
+            self.frame_settings.set_value('transform', self.transform)
+            self.frame_settings.set_value('contour_fg', self.contour_fg.copy())
+            self.frame_settings.set_value('contour_dc', self.contour_dc.copy())
+            self.frame_settings.set_value('bbox', self.bboxes.copy())
 
 
     def load_settings(self):
 
-        self.frame_settings.load(self.tar_filename.replace('.avi','.ann'))
+        self.frame_settings.load(self.annotate_file)
 
-        if os.path.exists(self.tar_filename.replace('.avi','.ann')):
+        if os.path.exists(self.annotate_file):
             self.ann_text.insertPlainText('Settings loaded !!\n')
             self.frame = self.frame_settings.frame
             self.frame_slider.setValue(self.frame)
 
 
     def save_settings(self):
-        self.frame_settings.save(self.tar_filename.replace('.avi','.ann'))
+        self.frame_settings.save(self.annotate_file)
 
     def set_morphology(self):
         self.threshold = self.thresh_slider.value()
@@ -589,9 +610,10 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
         if self.consistency_checkbox.isChecked():
             self.consistency = True
+            self.frame_settings.set_value('anchor', self.anchor_frame)
         else:
             self.consistency = False
-            self.frame_settings.set_value('anchor', self.frame_settings.settings_df.loc[self.frame-1,'anchor'])
+            self.frame_settings.set_value('anchor', self.frame)
 
         self.frame_settings.set_value('consistency', self.consistency)
         self.update(static=True)
