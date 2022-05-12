@@ -8,7 +8,6 @@ To do:
 import os
 import sys
 import cv2
-from cv2 import COLOR_RGB2GRAY
 import numpy as np
 import pandas as pd
 import pickle
