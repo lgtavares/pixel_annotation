@@ -75,6 +75,9 @@ class VideoPair:
         # self.align      = pd.read_csv(self.alignment)['2'].values -1
         self.num_frames = len(self.align)
 
+        # Rect
+        self.rect = []
+
         # self.error(os.path.exists(self.admult_filename), 
         #             'Error opening file\n {}.'.format(self.admult_filename)+
         #             '\nMake sure it is a valid file.')
@@ -127,7 +130,6 @@ class VideoPair:
         self.mask      = None
         self.K         = 6
         self.fold      = 0
-        self.rect      = None
         
         # Operations
         self.transform  = None
@@ -162,12 +164,17 @@ class VideoPair:
             self.classifier = None            
 
   
-    def get_frame(self, tar_idx, ref_idx=-1):
+    def get_frame(self, tar_idx, ref_idx=-1, offset=0):
 
         if ref_idx==-1:
             ref_idx = self.align[tar_idx]
 
-        ref_frame = np.array(Image.open(os.path.join(self.reference_folder, 'frame_{0:05d}.png'.format(ref_idx))))
+        if ref_idx + offset >= self.num_frames:
+            offset  = self.num_frames - ref_idx -1
+        if ref_idx + offset < 0:
+            offset = -ref_idx
+
+        ref_frame = np.array(Image.open(os.path.join(self.reference_folder, 'frame_{0:05d}.png'.format(ref_idx+offset))))
         tar_frame = np.array(Image.open(os.path.join(self.target_folder, 'frame_{0:05d}.png'.format(tar_idx))))
         ret_frame = np.zeros_like(tar_frame)
 
@@ -251,7 +258,8 @@ class VideoPair:
         ret_frame = rect_img*ret_frame
 
 
-
+        # Cleaning bounding box
+        self.rect = []
         # if self.mask != None and self.mode == None:
         #     ret_frame = 255*mask_frame
         # elif self.mask == None and self.mode != None:

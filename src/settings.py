@@ -9,17 +9,17 @@ class Settings():
 
         self.names = ['target_frame', 'reference_frame', 'annotated', 'has_object', 'mask', 'algorithm',
                       'fold', 'K', 'opening', 'closing', 'erosion', 'threshold',
-                      'contour_fg', 'contour_dc', 'anchor', 'consistency', 'transform', 'bbox']
+                      'contour_fg', 'contour_dc', 'anchor', 'consistency', 'transform', 'bbox', 'offset']
 
         self.num_frames  = num_frames
         self.align       = align
         self.df = pd.DataFrame(index=np.arange(self.num_frames),columns=self.names)
         
         # populate the frames
-        self.__zero_condition = [0, 0, False, None, None, None, 0, 2, 0, 0, 0, 127, [], [], 0, None, None, []]
+        self.__zero_condition = [0, 0, False, None, None, None, 0, 2, 0, 0, 0, 127, [], [], 0, None, None, [], 0]
 
         for k in range(self.num_frames):
-            self.df.iloc[k] =  self.__zero_condition 
+            self.df.iloc[k] =  self.__zero_condition.copy()
         if len(self.align) > 0:
             self.df['target_frame']    = np.arange(self.num_frames)
             self.df['reference_frame'] = self.align
@@ -53,15 +53,17 @@ class Settings():
         return self.df.loc[self.df['target_frame']==anchor_frame, :]
 
     def propagate_previous(self):
-        propag_columns = ['annotated','mask', 'algorithm', 'opening', 'closing', 'erosion', 'threshold', 'anchor', 'consistency']
+        propag_columns = ['mask', 'algorithm', 'opening', 'closing', 'erosion', 'threshold', 'anchor', 'consistency']
         #self.set_frame(self.frame+1)
         if self.frame > 0:
-            if self.df.loc[self.df['target_frame']==self.frame-1,'annotated'].values[0] &  ~self.df.loc[self.df['target_frame']==self.frame,'annotated'].values[0] :
+            if self.df.loc[self.df['target_frame']==self.frame-1,'annotated'].values[0] &  ~ self.df.loc[self.df['target_frame']==self.frame,'annotated'].values[0] :
                 self.df.loc[self.df['target_frame']==self.frame,propag_columns] = self.df.loc[self.df['target_frame']==self.frame-1,propag_columns].copy().values
+                self.df.loc[self.df['target_frame']==self.frame-1,'annotated']  = True
+
 
     def get_row_str(self, frame):
         row = self.get_row(frame)
-
+        
         print_str  = 'Frame [{0:>4d}/{1:>4d}]:'.format(frame+1,row['reference_frame'].values[0]+1)
         print_str += '{0},'.format(row['annotated'].values[0])
         print_str += '{0},'.format(row['mask'].values[0])
@@ -75,6 +77,7 @@ class Settings():
         print_str += '[{0},'.format(len(row['contour_fg'].values[0]))
         print_str += '{0}]'.format(len(row['contour_dc'].values[0]))
         print_str += '[{0}]'.format(len(row['bbox'].values[0]))
+        print_str += '[{0}]'.format(row['offset'].values[0])
         print_str += '\n'
 
         return print_str
@@ -88,7 +91,7 @@ class Settings():
     def load(self,filename):
         load_columns = ['annotated', 'has_object', 'mask', 'algorithm',
                       'fold', 'K', 'opening', 'closing', 'erosion', 'threshold',
-                      'contour_fg', 'contour_dc', 'anchor', 'consistency', 'transform', 'bbox']
+                      'contour_fg', 'contour_dc', 'anchor', 'consistency', 'transform', 'bbox', 'offset']
         if os.path.exists(filename):
             input_df =  pickle.load(open(filename, 'rb'))  
             self.df[load_columns] = self.to_df(input_df)

@@ -48,16 +48,12 @@ class Ui_MainWindow(object):
         self.pushbutton_next.setText('\u25b6')
         self.pushbutton_prev.setText('\u25c0')
 
-        self.frame_edit  = QtWidgets.QTextEdit(self.centralwidget)
         self.frame_label = QtWidgets.QLabel(self.centralwidget)
-        self.frame_edit.setText('-')
-        self.frame_label.setText('/ -')
-        self.frame_edit.setMaximumSize(QtCore.QSize(75, 40))
+        self.frame_label.setText('- / -')
     
         self.slide_horizontalLayout.addWidget(self.pushbutton_prev)
         self.slide_horizontalLayout.addWidget(self.frame_slider)
         self.slide_horizontalLayout.addWidget(self.pushbutton_next)
-        self.slide_horizontalLayout.addWidget(self.frame_edit)
         self.slide_horizontalLayout.addWidget(self.frame_label)
         self.img_verticalLayout.addLayout(self.slide_horizontalLayout)
 
@@ -222,7 +218,7 @@ class Ui_MainWindow(object):
         post_layout.addLayout(grid_layout)
         self.ann_text = QtWidgets.QTextBrowser()
         self.ann_text.setEnabled(False)
-        self.ann_text.setMinimumHeight(170)
+        self.ann_text.setMinimumHeight(230)
         self.ann_text.setMinimumWidth(700)
         post_layout.addWidget(self.ann_text)
 
@@ -254,7 +250,7 @@ class Ui_MainWindow(object):
         self.fill_checkbox.stateChanged.connect(self.update)
         self.mark_checkbox.stateChanged.connect(self.update)
         self.contour_checkbox.stateChanged.connect(self.update)
-        #self.noobject_pushbutton.clicked.connect(self.noobject)
+        self.ref_offset_sbox.valueChanged['int'].connect(self.set_morphology)
         self.activate_checkbox.stateChanged.connect(self.activate)
         self.angle_checkbox.stateChanged.connect(self.activate)
         self.load_pushbutton.clicked.connect(self.load_settings)

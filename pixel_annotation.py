@@ -68,6 +68,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.K            = 2
         self.fold         = 0
         self.fps_vdao2   = [5, 5, 10, 10, 10, 10, 10, 10, 10, 10, 10, 5, 5]
+        self.offset = 0
 
         self.anchor_frame = 0
         self.consistency  = False
@@ -75,9 +76,15 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.anchor_silhouette = None
         self.anchor_target     = None
 
-        self.bboxes = []
         self.contour_dc = []
         self.contour_fg = []
+
+        # Status
+        self.status_annotating = False
+        self.status_comp_inclination = False
+        self.status_ann_reference = False
+        self.status_propagating = False
+        self.status_consistency = False
 
 
         self.setupUi(self)
@@ -129,31 +136,13 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
         if self.status.loadedFiles:
 
-            # setting bounding box
-            self.bboxes = self.frame_settings.get_value('bbox')
-            self.videopair.rect = self.bboxes
-
-            ref_frame, tar_frame, net_frame = self.videopair.get_frame(self.frame)
+            ref_frame, tar_frame, net_frame = self.videopair.get_frame(self.frame, offset=self.offset)
             self.setImages(ref_frame, tar_frame, net_frame, static_change=static)
             self.annotate()
             self._print_text(self.frame)
 
 
     def setImages(self, image_ref, image_tar, net_frames, static_change=False):
-
-        # # Check if the consistency is enabled
-        # if self.anchor != self.frame and self.consistency_checkbox.isChecked():
-        #     # consistency enabled
-
-        #     # loading anchor annotation
-        #     self.contour_fg = self.frame_settings.get_anchor_value('contour_fg')
-        #     self.contour_dc = self.frame_settings.get_anchor_value('contour_dc')
-        #     transformation  = self.frame_settings.get_value('transform')
-            
-
-        # else:
-        #     # consistency not enabled
-        #     pass
 
         # Checking if the frame is already annotated
         if self.frame_settings.get_value('annotated') and static_change==False:
@@ -177,14 +166,15 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
                 self.contour_dc = self.frame_settings.get_value('contour_dc')
 
         elif self.frame_settings.get_value('annotated') and static_change==True:
+
                 self.contour_fg = self.frame_settings.get_anchor_value('contour_fg')
                 self.contour_dc = self.frame_settings.get_anchor_value('contour_dc')
 
                 detection   = np.zeros_like(net_frames)
                 cv2.fillPoly(detection, pts=self.contour_dc, color=127)
                 cv2.fillPoly(detection, pts=self.contour_fg, color=255)    
-                foreground = 255*(warped_det > 200).astype('uint8')
-                dontcare   = 255*(warped_det > 50).astype('uint8')
+                foreground = 255*(detection > 200).astype('uint8')
+                dontcare   = 255*(detection > 50).astype('uint8')
                 cnt_fg, cnt_dc = self.get_contours(foreground, dontcare)
                 self.contour_fg = cnt_fg
                 self.contour_dc = cnt_dc                         
@@ -209,11 +199,10 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             img_show_tar = self.draw_contour(image_tar,self.contour_fg, self.contour_dc)
 
 
-        #self.frame_edit.setText('{}'.format(self.frame+1))
+        # Printing images on the screen
         if self.frame >=0 and self.frame<self.num_frames:
             self.scene_ref.clear()
             self.scene_tar.clear()
-
         
             imgmap_ref  = QtGui.QPixmap(to_pixmap(img_show_ref))
             pixItem_ref = QtWidgets.QGraphicsPixmapItem(imgmap_ref) 
@@ -243,10 +232,12 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.frame_slider.setEnabled(True)
             self.frame_slider.setMinimum(0)
             self.frame_slider.setMaximum(self.num_frames-1)
+            self.frame_slider.blockSignals(True)
             self.frame_slider.setValue(self.frame)
+            self.frame_slider.blockSignals(False)
             self.pushbutton_next.setEnabled(True)
             self.pushbutton_prev.setEnabled(True)
-            self.frame_label.setText('/ {}'.format(self.num_frames))
+            self.frame_label.setText('{0:>5d} / {1}'.format(self.frame+1, self.num_frames))
         
             if self.tcf_net_radio.isChecked() or self.rf_net_radio.isChecked():
                 self.fold_combobox.setEnabled(True)
@@ -255,16 +246,24 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
             self.ann_text.setEnabled(True)
 
+            ref_frame = self.frame_settings.get_value('reference_frame')
+
+            # if self.frame < 10:
+            #     self.ref_offset_sbox.setMinimum(-ref_frame)
+            # if self.frame > self.num_frames - 11:
+            #     self.ref_offset_sbox.setMaximum(self.num_frames - ref_frame -1)
+
         
     def setFrame(self):
         """Load frame"""
+
+        # Setting status
+        self.status_propagating = False # When I move to the next frame, I want to turn on the propagation
+        self.status_annotating  = False 
+
         frm = self.frame_slider.value()
         if frm < self.num_frames and frm >=0:
-           self.frame = frm
-           self.frame_settings.set_frame(self.frame)
-
-
-        self.change_frame()    
+            self.change_frame(frm)  
 
     def setFold(self):
         """Load frame"""
@@ -275,43 +274,64 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
     def nextFrame(self):
         """Load next frame"""
 
+        # Setting status
+        self.status_propagating = True # When I move to the next frame, I want to turn on the propagation
+        self.status_annotating  = True 
+
         if self.frame < self.num_frames:
-            self.frame_settings.set_value('annotated', True)
-            self.frame += 1
-            self.frame_settings.propagate_previous()
-            #self.frame_settings.set_value('annotated', False)
-            self.update(static=False)
+            self.change_frame(self.frame+1)
 
 
     def prevFrame(self):
         """Load previous frame"""
-        if self.frame >0:
-            self.frame_settings.set_value('annotated', True)
-            self.frame -= 1
-            self.frame_settings.set_frame(self.frame)
-            self.change_frame()
 
-            self.frame_slider.setValue(self.frame)
+        # Setting status
+        self.status_propagating = False # When I move to the next frame, I want to turn on the propagation
+        self.status_annotating  = False # I want to just read 
+
+        if self.frame >0:
+            self.change_frame(self.frame-1)
 
     
-    def change_frame(self):
+    def change_frame(self, new_frame):
 
-        # If frame is annotated, the annotations is turned off and the current contours are loaded
-        # as well as the parameters
+        # Checking if the new frame is the subsequent frame
+        subseq = self.frame == new_frame-1
+
+        # Correcting status
+        if not self.activate_checkbox.isChecked():
+            self.status_annotating  = False
+            self.status_consistency = False
+            self.status_propagating = False
+
+        # annotating the current frame before changing 
+        if self.status_annotating:
+            self.frame_settings.set_value('annotated', True)
+
+        # Setting frame label text
+        self.frame_label.setText('{0:>5d} / {1}'.format(new_frame+1, self.num_frames))
+
+        # Setting frame slider
+        self.frame_slider.blockSignals(True)
+        self.frame_slider.setValue(self.frame)
+        self.frame_slider.blockSignals(False)
+
+        # Setting frame variable
+        self.frame = new_frame
+        self.frame_settings.set_frame(new_frame)
+
+        # If the new frame is annotated
         if self.frame_settings.get_value('annotated'):
             
-            # Turning annotation off
-            # self.activate_checkbox.setChecked(False)
-
-            # Re-set parameters
+            # Reload frame parameters
             self.reload_variables()
 
-            # Load contours
         else:
-            self.frame_settings.propagate_previous()
-            self.frame_settings.set_value('annotated', False)
+
+            # if the frame is the subsequent frame, propagate the settings
+            if subseq:
+                self.frame_settings.propagate_previous()
             
-        
         self.update(static=False)
 
             
@@ -328,11 +348,11 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.anchor_frame = frame['anchor'].values[0]
         self.consistency  = frame['consistency'].values[0]
         self.transform    = frame['transform'].values[0]
-        self.bboxes       = frame['bbox'].values[0]
         self.contour_dc   = frame['contour_dc'].values[0]
         self.contour_fg   = frame['contour_fg'].values[0]
         self.fold         = frame['fold'].values[0]
         self.K            = frame['K'].values[0]
+        self.offset       = frame['offset'].values[0]
 
         # reseting widgets
         self.frame_slider.blockSignals(True)
@@ -356,6 +376,10 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.erode_sbox.setValue(self.erosion)
         self.erode_sbox.blockSignals(False)
 
+        self.ref_offset_sbox.blockSignals(True)
+        self.ref_offset_sbox.setValue(self.offset)
+        self.ref_offset_sbox.blockSignals(False)
+
         self.fold_combobox.blockSignals(True)
         self.fold_combobox.setCurrentIndex(self.fold)
         self.fold_combobox.blockSignals(False)
@@ -371,32 +395,35 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
         if self.mask_method == 'ADMULT':
             self.admult_mask_radio.setChecked(True)
-            self.admult_mask_radio.click()
+            # self.admult_mask_radio.click()
         elif self.mask_method == 'ADMULT-20':
             self.admult20_mask_radio.setChecked(True)
-            self.admult20_mask_radio.click()
+            # self.admult20_mask_radio.click()
         elif self.mask_method == 'ADMULT-40':
             self.admult40_mask_radio.setChecked(True)
-            self.admult40_mask_radio.click()
+            # self.admult40_mask_radio.click()
         else:
             self.none_mask_radio.setChecked(True)
-            self.none_mask_radio.click()
+            # self.none_mask_radio.click()
 
         if self.classifier == 'TCF-LMO':
             self.tcf_net_radio.setChecked(True)
-            self.tcf_net_radio.click()
+            # self.tcf_net_radio.click()
         elif self.classifier == 'Resnet+RF':
             self.rf_net_radio.setChecked(True)
-            self.rf_net_radio.click()
+            # self.rf_net_radio.click()
         elif self.classifier == 'Resnet+Dissim':
             self.diss_radio.setChecked(True)
-            self.diss_radio.click()
+            # self.diss_radio.click()
         elif self.classifier == 'K-means':
             self.km_net_radio.setChecked(True)
-            self.km_net_radio.click()
+            # self.km_net_radio.click()
         else:
             self.none_net_radio.setChecked(False)
-            self.none_net_radio.click()
+            # self.none_net_radio.click()
+
+        # Correcting status
+        self.status_annotating = False
          
     def resizeEvent(self, event):
         if self.status.loadedFiles:
@@ -405,6 +432,12 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
     
 
     def change_net(self):
+
+        # Changing status
+        self.status_annotating = True
+        self.status_consistency = False
+        self.status_propagating = False
+        
         radioButton = self.sender()
         if radioButton.isChecked():
             self.videopair.set_mode(radioButton.mode)
@@ -414,6 +447,12 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
 
     def change_mask(self):
+
+        # Changing status
+        #self.status_annotating = True
+        #self.status_consistency = False
+        #self.status_propagating = False
+
         radioButton = self.sender()
         if radioButton.isChecked():
             self.videopair.mask = radioButton.mask
@@ -508,7 +547,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
     def annotate(self):
         
-        if self.activate_checkbox.isChecked():
+        if self.status_annotating:
             if len(self.contour_dc)+len(self.contour_fg)>0  :
                 self.frame_settings.set_value('has_object', True)
             else:
@@ -526,7 +565,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.frame_settings.set_value('transform', self.transform)
             self.frame_settings.set_value('contour_fg', self.contour_fg.copy())
             self.frame_settings.set_value('contour_dc', self.contour_dc.copy())
-            self.frame_settings.set_value('bbox', self.bboxes.copy())
+            self.frame_settings.set_value('offset', self.offset)
 
 
     def load_settings(self):
@@ -543,11 +582,18 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.frame_settings.save(self.annotate_file)
 
     def set_morphology(self):
+
+        # Setting status
+        self.status_annotating = True
+        self.status_consistency = False
+        self.status_propagating = False
+
         self.threshold = self.thresh_slider.value()
         self.closing   = self.close_sbox.value()
         self.opening   = self.open_sbox.value()
         self.erosion   = self.erode_sbox.value()
         self.K         = self.k_sbox.value()
+        self.offset    = self.ref_offset_sbox.value()
         self.fold      = self.fold_combobox.currentIndex()
         self.thresh_label.setText(str(self.threshold))
 
@@ -564,6 +610,13 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         else:
             [self._print_line(k) for k in range(self.frame-2, self.frame+3)]
 
+        self.ann_text.insertPlainText("\n")
+        self.ann_text.insertPlainText("Status:\n")
+        self.ann_text.insertPlainText("Annotating: {0} - ".format(self.status_annotating))
+        self.ann_text.insertPlainText("Consistency: {0} - ".format(self.status_consistency))
+        self.ann_text.insertPlainText("Propagating: {0}".format(self.status_propagating))
+
+
     def _print_line(self, f):
 
         print_str = self.frame_settings.get_row_str(f)
@@ -571,9 +624,14 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
 
     def activate(self):
-        
+
+
         if self.activate_checkbox.isChecked():
 
+            # Status
+            self.status_annotating  = True
+            self.status_propagating = True
+        
             self.class_groupbox.setEnabled(True)
             self.post_groupbox.setEnabled(True)
             self.vis_groupbox.setEnabled(True)
@@ -585,8 +643,12 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.fill_checkbox.setEnabled(True)
             self.mark_checkbox.setEnabled(True)
             self.angle_checkbox.setEnabled(True)
+            self.ref_offset_sbox.setEnabled(True)
 
         else:
+            # Status
+            self.status_annotating  = False
+            self.status_propagating = False
 
             self.class_groupbox.setEnabled(False)
             self.post_groupbox.setEnabled(False)
@@ -598,13 +660,24 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.fill_checkbox.setEnabled(False)
             self.mark_checkbox.setEnabled(False)
             self.angle_checkbox.setEnabled(False)
+            self.ref_offset_sbox.setEnabled(False)
 
         self.update(static=True)
 
     def activate_toggle(self):
+        # Setting status
+        self.status_annotating = False
+        self.status_consistency = False
+        self.status_propagating = False
+
         self.activate_checkbox.setChecked(not self.activate_checkbox.isChecked())
         
     def activate_consistency(self):
+
+        # Setting status
+        self.status_annotating = True
+        self.status_consistency = True
+        self.status_propagating = True # ?
 
         self.anchor_frame = self.frame
 
@@ -659,14 +732,21 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             return detection
 
     def set_rect(self):
+
+        # Setting status
+        self.status_annotating = True
+        self.status_consistency = False
+        self.status_propagating = False
+
         if -1 in self.graphicview_tar.box_rect.getRect():
-            self.bboxes = []
+            bboxes = []
         else:
+            bboxes = self.frame_settings.get_value('bbox').copy()
             box_rect = self.graphicview_tar.box_rect
             box = self.graphicview_tar.mapToScene(box_rect).boundingRect()
-            self.bboxes.append([int(i) for i in box.getRect()])
-        self.videopair.rect = self.bboxes
-        self.frame_settings.set_value('bbox', self.bboxes)
+            bboxes.append([int(i) for i in box.getRect()])
+        self.videopair.rect = bboxes
+        self.frame_settings.set_value('bbox', bboxes)
         self.update(static=True)
             
     def calculate_angles(self):
@@ -694,8 +774,6 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.tar_theta_z = (np.cumsum(tar_omegaz-tar_bias_wz)/self.fps)*180/np.pi
         self.ref_theta_x = (np.cumsum(ref_omegax-ref_bias_wx)/self.fps)*180/np.pi
         self.ref_theta_z = (np.cumsum(ref_omegaz-ref_bias_wz)/self.fps)*180/np.pi
-
-
 
 
 if __name__ == "__main__":
