@@ -136,6 +136,8 @@ class VideoPair:
         self.net        = None
         self.operation  = None
         self.classifier = None
+        
+        self.homography = False
 
     def error(self, test, message):
         if not test:
@@ -177,6 +179,32 @@ class VideoPair:
         ref_frame = np.array(Image.open(os.path.join(self.reference_folder, 'frame_{0:05d}.png'.format(ref_idx+offset))))
         tar_frame = np.array(Image.open(os.path.join(self.target_folder, 'frame_{0:05d}.png'.format(tar_idx))))
         ret_frame = np.zeros_like(tar_frame)
+
+        # homography
+        if self.homography:
+            
+             # Initiate SIFT detector
+            sift = cv2.SIFT_create()
+            kp1, des1 = sift.detectAndCompute(ref_frame,None)
+            kp2, des2 = sift.detectAndCompute(tar_frame,None)
+
+            index_params  = dict(algorithm = 1, trees = 5)
+            search_params = dict(checks = 50)
+            flann = cv2.FlannBasedMatcher(index_params, search_params)
+            matches = flann.knnMatch(des1,des2,k=2)
+
+            good = []
+            for m,n in matches:
+                if m.distance < 0.7*n.distance:
+                    good.append(m)
+
+            # Select good matched keypoints
+            src_pts = np.float32([ kp1[m.queryIdx].pt for m in good ]).reshape(-1,1,2)
+            dst_pts = np.float32([ kp2[m.trainIdx].pt for m in good ]).reshape(-1,1,2)
+            
+            # Compute homography
+            H, _ = cv2.findHomography(src_pts, dst_pts, method=cv2.RANSAC, ransacReprojThreshold=5.0)
+            ref_frame = cv2.warpPerspective(ref_frame, H, (ref_frame.shape[1], ref_frame.shape[0]))
 
         if self.mode == 'Resnet+RF':
 

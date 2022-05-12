@@ -67,8 +67,9 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.erosion     = 1
         self.K            = 2
         self.fold         = 0
-        self.fps_vdao2   = [5, 5, 10, 10, 10, 10, 10, 10, 10, 10, 10, 5, 5]
-        self.offset = 0
+        self.fps_vdao2    = [5, 5, 10, 10, 10, 10, 10, 10, 10, 10, 10, 5, 5]
+        self.offset       = 0
+        self.homography   = False
 
         self.anchor_frame = 0
         self.consistency  = False
@@ -135,7 +136,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
 
         if self.status.loadedFiles:
-
+            
             ref_frame, tar_frame, net_frame = self.videopair.get_frame(self.frame, offset=self.offset)
             self.setImages(ref_frame, tar_frame, net_frame, static_change=static)
             self.annotate()
@@ -353,6 +354,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.fold         = frame['fold'].values[0]
         self.K            = frame['K'].values[0]
         self.offset       = frame['offset'].values[0]
+        self.homography   = frame['homography'].values[0]
 
         # reseting widgets
         self.frame_slider.blockSignals(True)
@@ -384,12 +386,16 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.fold_combobox.setCurrentIndex(self.fold)
         self.fold_combobox.blockSignals(False)
 
+        self.homography_checkbox.blockSignals(True)
+        self.homography_checkbox.setChecked(self.homography)
+        self.homography_checkbox.blockSignals(False)
+
         self.k_sbox.blockSignals(True)
         self.k_sbox.setValue(self.K)
         self.k_sbox.blockSignals(False)
 
         self.consistency_checkbox.blockSignals(True)
-        self.consistency_checkbox.setChecked(True)
+        self.consistency_checkbox.setChecked(self.consistency)
         self.consistency_checkbox.click()
         self.consistency_checkbox.blockSignals(False)
 
@@ -566,6 +572,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.frame_settings.set_value('contour_fg', self.contour_fg.copy())
             self.frame_settings.set_value('contour_dc', self.contour_dc.copy())
             self.frame_settings.set_value('offset', self.offset)
+            self.frame_settings.set_value('homography', self.homography)
 
 
     def load_settings(self):
@@ -596,7 +603,9 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.offset    = self.ref_offset_sbox.value()
         self.fold      = self.fold_combobox.currentIndex()
         self.thresh_label.setText(str(self.threshold))
-
+        
+        self.homography = self.homography_checkbox.isChecked()
+        self.videopair.homography =self.homography
         #self.consistency_checkbox.setChecked(False)
         self.update(static=True)
     
@@ -644,6 +653,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.mark_checkbox.setEnabled(True)
             self.angle_checkbox.setEnabled(True)
             self.ref_offset_sbox.setEnabled(True)
+            self.homography_checkbox.setEnabled(True)
 
         else:
             # Status
@@ -661,6 +671,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
             self.mark_checkbox.setEnabled(False)
             self.angle_checkbox.setEnabled(False)
             self.ref_offset_sbox.setEnabled(False)
+            self.homography_checkbox.setEnabled(False)
 
         self.update(static=True)
 

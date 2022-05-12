@@ -9,14 +9,14 @@ class Settings():
 
         self.names = ['target_frame', 'reference_frame', 'annotated', 'has_object', 'mask', 'algorithm',
                       'fold', 'K', 'opening', 'closing', 'erosion', 'threshold',
-                      'contour_fg', 'contour_dc', 'anchor', 'consistency', 'transform', 'bbox', 'offset']
+                      'contour_fg', 'contour_dc', 'anchor', 'consistency', 'transform', 'bbox', 'offset', 'homography', 'H_mat']
 
         self.num_frames  = num_frames
         self.align       = align
         self.df = pd.DataFrame(index=np.arange(self.num_frames),columns=self.names)
         
         # populate the frames
-        self.__zero_condition = [0, 0, False, None, None, None, 0, 2, 0, 0, 0, 127, [], [], 0, None, None, [], 0]
+        self.__zero_condition = [0, 0, False, None, None, None, 0, 2, 0, 0, 0, 127, [], [], 0, None, None, [], 0, False, None]
 
         for k in range(self.num_frames):
             self.df.iloc[k] =  self.__zero_condition.copy()
@@ -77,7 +77,7 @@ class Settings():
         print_str += '[{0},'.format(len(row['contour_fg'].values[0]))
         print_str += '{0}]'.format(len(row['contour_dc'].values[0]))
         print_str += '[{0}]'.format(len(row['bbox'].values[0]))
-        print_str += '[{0}]'.format(row['offset'].values[0])
+        print_str += '[{0}, {1}]'.format(row['offset'].values[0], row['homography'].values[0])
         print_str += '\n'
 
         return print_str
@@ -91,7 +91,8 @@ class Settings():
     def load(self,filename):
         load_columns = ['annotated', 'has_object', 'mask', 'algorithm',
                       'fold', 'K', 'opening', 'closing', 'erosion', 'threshold',
-                      'contour_fg', 'contour_dc', 'anchor', 'consistency', 'transform', 'bbox', 'offset']
+                      'contour_fg', 'contour_dc', 'anchor', 'consistency', 'transform', 
+                      'bbox', 'offset', 'homography', 'H_mat']
         if os.path.exists(filename):
             input_df =  pickle.load(open(filename, 'rb'))  
             self.df[load_columns] = self.to_df(input_df)
