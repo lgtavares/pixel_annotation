@@ -19,7 +19,7 @@ class Settings():
         self.__zero_condition = [0, 0, False, None, None, None, 0, 2, 0, 0, 0, 127, [], [], 0, None, None, [], 0, False, None]
 
         for k in range(self.num_frames):
-            self.df.iloc[k] =  self.__zero_condition.copy()
+            self.df.iloc[k] =  np.array(self.__zero_condition, dtype=np.object).copy()
         if len(self.align) > 0:
             self.df['target_frame']    = np.arange(self.num_frames)
             self.df['reference_frame'] = self.align
