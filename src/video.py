@@ -39,6 +39,7 @@ class VideoPair:
         self.reference_folder = os.path.join(dirname, 'reference')
         self.target_folder    = os.path.join(dirname, 'target')
         self.rf_folder        = os.path.join(os.path.dirname(dirname),'rf')
+        self.lgbm_folder      = os.path.join(os.path.dirname(dirname),'lgbm')
 
         # Files
         self.alignment        = os.path.join(dirname, 'alignment.mat')
@@ -159,6 +160,12 @@ class VideoPair:
             self.net.freeze()
             self.operation  = None
             self.classifier = None
+        if self.mode == 'Resnet+LightGBM':
+            self.transform  = resnet_transform
+            self.net        = Resnet50_Reduced('cuda' if torch.cuda.is_available() else 'cpu')
+            self.net.freeze()
+            self.operation  = None
+            self.classifier = joblib.load(os.path.join(self.lgbm_folder,'test_fold{0:02d}.pkl'.format(self.fold)))
         else:
             self.transform  = None
             self.net        = None
@@ -213,6 +220,10 @@ class VideoPair:
         if self.mode == 'Resnet+Dissim':
 
             ref_frame, tar_frame, ret_frame = self.run_resnetDissim(ref_frame,tar_frame)
+
+        if self.mode == 'Resnet+LightGBM':
+
+            ref_frame, tar_frame, ret_frame = self.run_resnetLGBM(ref_frame,tar_frame)
 
         # frames_tcf = np.array([i.get_frame(idx) for i in self.tcf_videos])
         # frames_rf  = np.array([i.get_frame(idx) for i in self.rf_videos])
@@ -348,6 +359,25 @@ class VideoPair:
         pred    = 255-(255*logistic).astype('uint8')
         pred    = cv2.resize(pred, (800,450))
         pred    = cv2.cvtColor(pred.astype(np.uint8), cv2.COLOR_GRAY2RGB)
+
+        # Classifier
+        return ref, tar, pred
+
+    def run_resnetLGBM(self, ref, tar):
+
+        # Transform
+        ref_feat = self.transform(ref)
+        tar_feat = self.transform(tar)
+
+        # Net
+        ref_feat = self.net(ref_feat[None,:,:,:])
+        tar_feat = self.net(tar_feat[None,:,:,:])
+
+        # Operations
+        feat = torch.concat((ref_feat,tar_feat), axis=1)[0].T.reshape((-1,512))
+        pred = (255 * self.classifier.predict_proba(feat.detach().numpy())[:,1].reshape((200,113)).T)
+        pred = cv2.resize(pred, (800,450), interpolation = cv2.INTER_LINEAR)
+        pred = cv2.cvtColor(pred.astype(np.uint8), cv2.COLOR_GRAY2RGB)
 
         # Classifier
         return ref, tar, pred
