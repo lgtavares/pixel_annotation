@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import pickle
 import imutils
+import lightgbm as lgb 
 
 # PyQt libraries
 from PyQt5 import QtCore, QtGui, QtWidgets

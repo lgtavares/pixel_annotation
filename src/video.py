@@ -27,8 +27,6 @@ normalize_transform = transforms.Normalize(mean=MEAN_IMAGENET, std=STD_IMAGENET)
 to_tensor_transform = transforms.ToTensor()
 resnet_transform    = transforms.Compose([to_tensor_transform, normalize_transform])
 
-
-
 class VideoPair:
     def __init__(self, dirname):
 
@@ -144,6 +142,9 @@ class VideoPair:
         if not test:
             return QtWidgets.QMessageBox.critical(self, 'Error', (message))
 
+    def pass_through(self, arr):
+        return arr
+
     def set_mode(self,mode):
 
         self.mode = mode
@@ -154,21 +155,21 @@ class VideoPair:
             self.net.freeze()
             self.operation  = None
             self.classifier = joblib.load(os.path.join(self.rf_folder,'testRF_fold{0:02d}.jbl'.format(self.fold)))
-        if self.mode == 'Resnet+Dissim':
+        elif self.mode == 'Resnet+Dissim':
             self.transform  = resnet_transform
             self.net        = Resnet50_Reduced('cuda' if torch.cuda.is_available() else 'cpu')
             self.net.freeze()
             self.operation  = None
             self.classifier = None
-        if self.mode == 'Resnet+LightGBM':
+        elif self.mode == 'Resnet+LightGBM':
             self.transform  = resnet_transform
             self.net        = Resnet50_Reduced('cuda' if torch.cuda.is_available() else 'cpu')
             self.net.freeze()
             self.operation  = None
-            self.classifier = joblib.load(os.path.join(self.lgbm_folder,'test_fold{0:02d}.pkl'.format(self.fold)))
+            self.classifier = joblib.load(os.path.join(self.lgbm_folder,'lgbm_test_fold{0:02d}.pkl'.format(self.fold+1)))
         else:
-            self.transform  = None
-            self.net        = None
+            self.transform  = self.pass_through
+            self.net        = self.pass_through
             self.operation  = None
             self.classifier = None            
 
@@ -212,6 +213,7 @@ class VideoPair:
             # Compute homography
             H, _ = cv2.findHomography(src_pts, dst_pts, method=cv2.RANSAC, ransacReprojThreshold=5.0)
             ref_frame = cv2.warpPerspective(ref_frame, H, (ref_frame.shape[1], ref_frame.shape[0]))
+            
 
         if self.mode == 'Resnet+RF':
 
@@ -347,7 +349,7 @@ class VideoPair:
         tar_feat = self.transform(tar)
 
         # Net
-        diff     = torch.sqrt(torch.sum(( self.net(ref_feat[None,:,:,:])[0] - self.net(tar_feat[None,:,:,:])[0]  )**2, 0))
+        diff     = np.sqrt((( self.net(ref_feat[None,:,:,:])[0] - self.net(tar_feat[None,:,:,:])[0]  )**2).sum(axis=0))
 
         diff     = (255*((diff-diff.min())/ (diff.max()-diff.min()))).detach().numpy().astype('uint8')
 
@@ -375,7 +377,7 @@ class VideoPair:
 
         # Operations
         feat = torch.concat((ref_feat,tar_feat), axis=1)[0].T.reshape((-1,512))
-        pred = (255 * self.classifier.predict_proba(feat.detach().numpy())[:,1].reshape((200,113)).T)
+        pred = (255 * self.classifier.predict(feat.detach().numpy()).reshape((200,113)).T)
         pred = cv2.resize(pred, (800,450), interpolation = cv2.INTER_LINEAR)
         pred = cv2.cvtColor(pred.astype(np.uint8), cv2.COLOR_GRAY2RGB)
 

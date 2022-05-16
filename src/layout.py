@@ -90,12 +90,12 @@ class Ui_MainWindow(object):
         maskbox.addWidget(self.none_mask_radio)
         mask_groupbox.setLayout(maskbox)
         classbox = QtWidgets.QVBoxLayout()
-        self.tcf_net_radio     = QtWidgets.QRadioButton('TCF-LMO')
+        self.tcf_net_radio     = QtWidgets.QRadioButton('Resnet+LightGBM')
         self.rf_net_radio      = QtWidgets.QRadioButton('Resnet+RF')
         self.diss_radio        = QtWidgets.QRadioButton('Resnet+Dissim')
         self.km_net_radio      = QtWidgets.QRadioButton('K-means')
         self.none_net_radio      = QtWidgets.QRadioButton('None')
-        self.tcf_net_radio.mode     = 'TCF-LMO'
+        self.tcf_net_radio.mode     = 'Resnet+LightGBM'
         self.rf_net_radio.mode      = 'Resnet+RF'
         self.diss_radio.mode        = 'Resnet+Dissim'
         self.km_net_radio.mode      = 'K-means'
