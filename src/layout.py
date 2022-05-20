@@ -71,24 +71,24 @@ class Ui_MainWindow(object):
 
         # Classifier groupbox
         class_layout  = QtWidgets.QHBoxLayout()
-        mask_groupbox = QtWidgets.QGroupBox('Mask',self.centralwidget)
+        #mask_groupbox = QtWidgets.QGroupBox('Mask',self.centralwidget)
         net_groupbox  = QtWidgets.QGroupBox('Algorithm',self.centralwidget)
         opt_groupbox  = QtWidgets.QGroupBox('Options',self.centralwidget)
-        self.admult_mask_radio   = QtWidgets.QRadioButton('ADMULT')
-        self.admult20_mask_radio  = QtWidgets.QRadioButton('ADMULT-20')
-        self.admult40_mask_radio  = QtWidgets.QRadioButton('ADMULT-40')
-        self.none_mask_radio   = QtWidgets.QRadioButton('None')
-        self.admult_mask_radio.mask  = 'ADMULT'
-        self.admult20_mask_radio.mask  = 'ADMULT-20'
-        self.admult40_mask_radio.mask  = 'ADMULT-40'
-        self.none_mask_radio.mask = None
-        self.none_mask_radio.setChecked(True)
-        maskbox = QtWidgets.QVBoxLayout()
-        maskbox.addWidget(self.admult_mask_radio)
-        maskbox.addWidget(self.admult20_mask_radio)
-        maskbox.addWidget(self.admult40_mask_radio)
-        maskbox.addWidget(self.none_mask_radio)
-        mask_groupbox.setLayout(maskbox)
+        #self.admult_mask_radio   = QtWidgets.QRadioButton('ADMULT')
+        #self.admult20_mask_radio  = QtWidgets.QRadioButton('ADMULT-20')
+        #self.admult40_mask_radio  = QtWidgets.QRadioButton('ADMULT-40')
+        #self.none_mask_radio   = QtWidgets.QRadioButton('None')
+        #self.admult_mask_radio.mask  = 'ADMULT'
+        #self.admult20_mask_radio.mask  = 'ADMULT-20'
+        #self.admult40_mask_radio.mask  = 'ADMULT-40'
+        #self.none_mask_radio.mask = None
+        #self.none_mask_radio.setChecked(True)
+        #maskbox = QtWidgets.QVBoxLayout()
+        #maskbox.addWidget(self.admult_mask_radio)
+        #maskbox.addWidget(self.admult20_mask_radio)
+        #maskbox.addWidget(self.admult40_mask_radio)
+        #maskbox.addWidget(self.none_mask_radio)
+        #mask_groupbox.setLayout(maskbox)
         classbox = QtWidgets.QVBoxLayout()
         self.tcf_net_radio     = QtWidgets.QRadioButton('Resnet+LightGBM')
         self.rf_net_radio      = QtWidgets.QRadioButton('Resnet+RF')
@@ -128,7 +128,7 @@ class Ui_MainWindow(object):
         optbox.addWidget(self.consistency_checkbox)
         opt_groupbox.setLayout(optbox)
 
-        class_layout.addWidget(mask_groupbox)
+        #class_layout.addWidget(mask_groupbox)
         class_layout.addWidget(net_groupbox)
         class_layout.addWidget(opt_groupbox)
         self.class_groupbox.setLayout(class_layout)
@@ -238,10 +238,10 @@ class Ui_MainWindow(object):
         self.km_net_radio.clicked.connect(self.change_net)
         self.none_net_radio.clicked.connect(self.change_net)
         self.diss_radio.clicked.connect(self.change_net)
-        self.admult_mask_radio.clicked.connect(self.change_mask)
-        self.admult20_mask_radio.clicked.connect(self.change_mask)
-        self.admult40_mask_radio.clicked.connect(self.change_mask)
-        self.none_mask_radio.clicked.connect(self.change_mask)
+        #self.admult_mask_radio.clicked.connect(self.change_mask)
+        #self.admult20_mask_radio.clicked.connect(self.change_mask)
+        #self.admult40_mask_radio.clicked.connect(self.change_mask)
+        #self.none_mask_radio.clicked.connect(self.change_mask)
         self.thresh_slider.valueChanged['int'].connect(self.set_morphology)
         self.open_sbox.valueChanged['int'].connect(self.set_morphology)
         self.close_sbox.valueChanged['int'].connect(self.set_morphology)
