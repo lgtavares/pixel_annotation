@@ -89,7 +89,7 @@ class Settings():
         return pd.DataFrame.from_dict(d).T
 
     def load(self,filename):
-        load_columns = ['annotated', 'has_object', 'mask', 'algorithm',
+        load_columns = ['target_frame', 'reference_frame','annotated', 'has_object', 'mask', 'algorithm',
                       'fold', 'K', 'opening', 'closing', 'erosion', 'threshold',
                       'contour_fg', 'contour_dc', 'anchor', 'consistency', 'transform', 
                       'bbox', 'offset', 'homography', 'H_mat']
