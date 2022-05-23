@@ -189,6 +189,8 @@ class VideoPair:
         ret_frame = np.zeros_like(tar_frame)
 
         # homography
+        x,y,w,h = 0,0,800,450
+
         if self.homography:
             
              # Initiate SIFT detector
@@ -214,6 +216,12 @@ class VideoPair:
             H, _ = cv2.findHomography(src_pts, dst_pts, method=cv2.RANSAC, ransacReprojThreshold=5.0)
             ref_frame = cv2.warpPerspective(ref_frame, H, (ref_frame.shape[1], ref_frame.shape[0]))
             
+            # Cropping black edge
+            gray = cv2.cvtColor(ref_frame,cv2.COLOR_BGR2GRAY)
+            _,thresh = cv2.threshold(gray,1,255,cv2.THRESH_BINARY)
+            contours,_ = cv2.findContours(thresh,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+            x,y,w,h = cv2.boundingRect(contours[0])
+
 
         if self.mode == 'Resnet+RF':
 
@@ -309,6 +317,10 @@ class VideoPair:
         #     ret_frame = np.zeros_like(tar_frame)
         # else:
         #     ret_frame = mask_frame*class_frame
+
+        ref_frame = ref_frame[y:y+h,x:x+w]
+        tar_frame = tar_frame[y:y+h,x:x+w]
+        ret_frame = ret_frame[y:y+h,x:x+w]
 
         return ref_frame, tar_frame, ret_frame
 

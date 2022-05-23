@@ -581,7 +581,7 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
 
         if os.path.exists(self.annotate_file):
             self.ann_text.insertPlainText('Settings loaded !!\n')
-            self.frame = self.frame_settings.frame
+            self.frame = self.frame_settings.frame4
             self.frame_slider.setValue(self.frame)
 
 
