@@ -334,8 +334,8 @@ class VideoPair:
         tar_feat = self.net(tar_feat[None,:,:,:])
 
         # Operations
-        feat = torch.concat((ref_feat,tar_feat), axis=1)[0].T.reshape((-1,512))
-        pred = (255 * self.classifier.predict_proba(feat.detach().numpy())[:,1].reshape((200,113)).T)
+        feat = torch.concat((ref_feat,tar_feat), axis=1)[0].reshape((512,-1)).T
+        pred = (255 * self.classifier.predict_proba(feat.detach().numpy())[:,1].reshape((113,200)))
         pred = cv2.resize(pred, (800,450), interpolation = cv2.INTER_LINEAR)
         pred = cv2.cvtColor(pred.astype(np.uint8), cv2.COLOR_GRAY2RGB)
 
@@ -376,8 +376,8 @@ class VideoPair:
         tar_feat = self.net(tar_feat[None,:,:,:])
 
         # Operations
-        feat = torch.concat((ref_feat,tar_feat), axis=1)[0].T.reshape((-1,512))
-        pred = (255 * self.classifier.predict(feat.detach().numpy()).reshape((200,113)).T)
+        feat = torch.concat((ref_feat,tar_feat), axis=1)[0].reshape((512,-1)).T
+        pred = (255 * self.classifier.predict(feat.detach().numpy()).reshape((113,200)))
         pred = cv2.resize(pred, (800,450), interpolation = cv2.INTER_LINEAR)
         pred = cv2.cvtColor(pred.astype(np.uint8), cv2.COLOR_GRAY2RGB)
 

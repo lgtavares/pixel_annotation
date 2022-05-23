@@ -102,8 +102,10 @@ class Settings():
             self.save(filename)
 
     def save(self, filename):
+        out_df = self.df.copy()
+        out_df.at[self.frame, 'annotated'] = True
         with open(filename, 'wb') as output_file:
-            pickle.dump(self.to_dict(self.df), output_file)
+            pickle.dump(self.to_dict(out_df), output_file)
 
     def save_settings(self):
         with open(self.tar_filename.replace('.avi','.ann'), 'wb') as output_file:

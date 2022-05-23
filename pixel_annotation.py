@@ -399,17 +399,17 @@ class MainWindow(QMainWindow, MainWindow, WindowMenu):
         self.consistency_checkbox.click()
         self.consistency_checkbox.blockSignals(False)
 
-        if self.mask_method == 'ADMULT':
-            self.admult_mask_radio.setChecked(True)
-            # self.admult_mask_radio.click()
-        elif self.mask_method == 'ADMULT-20':
-            self.admult20_mask_radio.setChecked(True)
-            # self.admult20_mask_radio.click()
-        elif self.mask_method == 'ADMULT-40':
-            self.admult40_mask_radio.setChecked(True)
-            # self.admult40_mask_radio.click()
-        else:
-            self.none_mask_radio.setChecked(True)
+        # if self.mask_method == 'ADMULT':
+        #     self.admult_mask_radio.setChecked(True)
+        #     # self.admult_mask_radio.click()
+        # elif self.mask_method == 'ADMULT-20':
+        #     self.admult20_mask_radio.setChecked(True)
+        #     # self.admult20_mask_radio.click()
+        # elif self.mask_method == 'ADMULT-40':
+        #     self.admult40_mask_radio.setChecked(True)
+        #     # self.admult40_mask_radio.click()
+        # else:
+        #     self.none_mask_radio.setChecked(True)
             # self.none_mask_radio.click()
 
         if self.classifier == 'TCF-LMO':
