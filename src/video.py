@@ -222,6 +222,8 @@ class VideoPair:
             contours,_ = cv2.findContours(thresh,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
             x,y,w,h = cv2.boundingRect(contours[0])
 
+            ref_frame = ref_frame[y:y+h,x:x+w]
+            tar_frame = tar_frame[y:y+h,x:x+w]
 
         if self.mode == 'Resnet+RF':
 
@@ -318,9 +320,6 @@ class VideoPair:
         # else:
         #     ret_frame = mask_frame*class_frame
 
-        ref_frame = ref_frame[y:y+h,x:x+w]
-        tar_frame = tar_frame[y:y+h,x:x+w]
-        ret_frame = ret_frame[y:y+h,x:x+w]
 
         return ref_frame, tar_frame, ret_frame
 
@@ -347,8 +346,8 @@ class VideoPair:
 
         # Operations
         feat = torch.concat((ref_feat,tar_feat), axis=1)[0].reshape((512,-1)).T
-        pred = (255 * self.classifier.predict_proba(feat.detach().numpy())[:,1].reshape((113,200)))
-        pred = cv2.resize(pred, (800,450), interpolation = cv2.INTER_LINEAR)
+        pred = (255 * self.classifier.predict_proba(feat.detach().numpy())[:,1].reshape((tar_feat.shape[2],tar_feat.shape[3])))
+        pred = cv2.resize(pred, (ref.shape[1],ref.shape[0]), interpolation = cv2.INTER_LINEAR)
         pred = cv2.cvtColor(pred.astype(np.uint8), cv2.COLOR_GRAY2RGB)
 
         # Classifier
@@ -371,7 +370,7 @@ class VideoPair:
         logistic = 1/(1+np.exp(nrm))
 
         pred    = 255-(255*logistic).astype('uint8')
-        pred    = cv2.resize(pred, (800,450))
+        pred    = cv2.resize(pred, (ref.shape[1],ref.shape[0]))
         pred    = cv2.cvtColor(pred.astype(np.uint8), cv2.COLOR_GRAY2RGB)
 
         # Classifier
@@ -389,8 +388,8 @@ class VideoPair:
 
         # Operations
         feat = torch.concat((ref_feat,tar_feat), axis=1)[0].reshape((512,-1)).T
-        pred = (255 * self.classifier.predict(feat.detach().numpy()).reshape((113,200)))
-        pred = cv2.resize(pred, (800,450), interpolation = cv2.INTER_LINEAR)
+        pred = (255 * self.classifier.predict(feat.detach().numpy()).reshape((tar_feat.shape[2],tar_feat.shape[3])))
+        pred = cv2.resize(pred, (ref.shape[1],ref.shape[0]), interpolation = cv2.INTER_LINEAR)
         pred = cv2.cvtColor(pred.astype(np.uint8), cv2.COLOR_GRAY2RGB)
 
         # Classifier
